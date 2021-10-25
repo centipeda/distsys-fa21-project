@@ -30,7 +30,24 @@ Some parameters will need to be tuned to ensure the system is truly functional:
 * In this case, the server may need to periodically send a full game state to each client to prevent descynchronization of the clients.
 
 ### communication
+
+To stnadardize communication between client/server, we must define a communication protocol. Some messages we may implement, along with their parameters:
+
+- `JOIN_MATCH`: sent to server to request joining a match/creating a new match
+- `MATCH_JOINED(user_id, match_id)`: sent to client to indicate a match has been joined, along with a match identifier to tell the server what match a user is a part of, as well as a user identifier to tell the server what inputs belong to what user.
+- `INPUT(tick, inputs)`: sent to server and to clients to indicate some input has happened
+- `MATCH_END(winner)`: sent to clients to indicate the match ended and who won
+
 ### code organization
+
+Most of the code is currently organized into classes:
+- The `GameEngine` class manages the game state, recorded inputs, and rolling back to account for old inputs.
+- The `GameClient` and `GameServer` classes faciliate communication, and are mainly responsible for marshaling/unmarshaling messages to and from the user and server, as well as relaying inputs to the `GameEngine`.
+- The `GameDisplay` class is responsible for rendering the game to the screen and accepting input from the user. 
+- `game.py` stores the aforementioned class's definitions.
+- `client.py` is the actual client program, responsible for instantiating the `GameClient` and `GameDisplay` and managing the local game loop.
+- `server.py` is the server program, managing listening for clients, holding matches, and relaying inputs.
+- `globalvars.py` stores global constants, such as screen size, color aliases, and names.
 
 #### Sources
 - [Netcode Concepts Part 2: Topology

@@ -1,5 +1,5 @@
 
-FRAMERATE = 60 # fps
+FRAMERATE = 60 # frames per second
 
 SCREEN_WIDTH  = 800
 SCREEN_HEIGHT = 800
