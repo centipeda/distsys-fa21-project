@@ -1,3 +1,4 @@
+"""Global variables and configuration settings."""
 
 FRAMERATE = 60 # frames per second
 

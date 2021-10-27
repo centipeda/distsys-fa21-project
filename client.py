@@ -1,3 +1,5 @@
+"""Executable for joining and playing matches."""
+
 import sys
 
 import game
@@ -14,11 +16,11 @@ def main():
             game_display.input_titlescreen()
             if game_display.state == "quit":
                 sys.exit()
-            elif game.display.state == "game":
+            elif game.display.state == "waiting":
                 game_client.start_game()
                 continue
             game_display.draw_titlescreen()
-        elif game_display.state == "game":
+        elif game_display.state == "waiting":
             game_client.accept_input()
 
 
