@@ -12,16 +12,25 @@ def main():
     while True:
         # lock the global framerate
         game_display.clock.tick(FRAMERATE)
+
         if game_display.state == "title":
             game_display.input_titlescreen()
             if game_display.state == "quit":
                 sys.exit()
-            elif game.display.state == "waiting":
+            elif game_display.state == "waiting":
                 game_client.start_game()
+                game_client.engine.add_user(game_client.player_id)
                 continue
             game_display.draw_titlescreen()
         elif game_display.state == "waiting":
-            game_client.accept_input()
+            # ask the server if there's a game to join
+            game_client.join_game()
+            # get input
+            game_client.process_input()
+            # update game state
+            game_client.advance_game()
+            # draw game
+            game_display.draw_frame(game_client.engine)
 
 
 if __name__ == "__main__":
