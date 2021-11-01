@@ -3,7 +3,9 @@
 import pygame, pygame.font
 from pygame import mouse
 import sys
+import time
 import socket
+import math
 
 from globalvars import *
 import game_objects
@@ -69,14 +71,32 @@ class GameDisplay:
 
         pygame.display.flip()
     
-    def draw_frame(self, engine):
+    def draw_frame(self, client):
         """Draws the current state of the game to the screen."""
+        engine = client.engine
+        # draw background
+        pygame.draw.rect(self.screen, COLOR_WHITE, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        # draw each entity
         for entity in engine.entities:
             ent_x, ent_y = entity.position
             cam_x, cam_y = self.camera_pos
             draw_pos = (ent_x-cam_x, ent_y-cam_y)
+            # draw player entity
             if entity.kind == game_objects.EntityKind.PLAYER:
                 pygame.draw.circle(self.screen, COLOR_RED, draw_pos, PLAYER_SIZE)
+                if entity.uid == client.player_id:
+                    dir_x,dir_y = entity.direction
+                    angle = math.atan2(dir_y,dir_x)
+                    l_x = (ent_x-cam_x) + GUIDELINE_LENGTH*math.cos(angle)
+                    l_y = (ent_y-cam_y) + GUIDELINE_LENGTH*math.sin(angle)
+                    pygame.draw.line(self.screen, COLOR_RED, draw_pos, (l_x,l_y), GUIDELINE_WIDTH)
+            # draw projectile
+            elif entity.kind == game_objects.EntityKind.PROJECTILE:
+                pygame.draw.circle(self.screen, COLOR_BLUE, draw_pos, PROJECTILE_SIZE)
+
+        # flip display
+        pygame.display.flip()
 
 class GameEngine:
     """Manages game state, accounting for inputs scheduled for the past,
@@ -103,12 +123,22 @@ class GameEngine:
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
         of all game entities."""
-
         for entity in self.entities:
             if entity.kind == game_objects.EntityKind.PLAYER:
-                if entity.uid in self.inputs[self.current_tick]:
+                if self.current_tick in self.inputs and entity.uid in self.inputs[self.current_tick]:
                     entity.update_velocity(self.inputs[self.current_tick][entity.uid])
-
+                    if self.inputs[self.current_tick][entity.uid]['fired']:
+                        p = entity.shoot_projectile()
+                        if p is not None:
+                            self.entities.append(p)
+            elif entity.kind == game_objects.EntityKind.PROJECTILE:
+                if entity.to_delete:
+                    self.entities.remove(entity)
+                    print(f'deleting {entity}')
+                    continue
+                hit = entity.check_collisions(self.entities)
+                if hit is not None:
+                    print(f'hit {hit}!')
             entity.update_position()
 
         self.current_tick += 1
@@ -138,16 +168,19 @@ class GameClient:
             pygame.K_a : False,
             pygame.K_s : False,
             pygame.K_d : False,
-            pygame.K_SPACE : False
+            'fired': False
         }
         self.player_id = 0
 
     def get_input(self):
         input_state = dict(self.input_state)
+        input_state['fired'] = False
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key in self.input_state:
                     input_state[event.key] = True
+                if event.key == pygame.K_SPACE:
+                    input_state['fired'] = True
             elif event.type == pygame.KEYUP:
                 if event.key in self.input_state:
                     input_state[event.key] = False
@@ -169,7 +202,6 @@ class GameClient:
 
         # record/send input to server only if there's been a change
         if changed:
-            print(new_state)
             self.input_state = new_state
             self.send_input()
             # send input to game engine
@@ -196,6 +228,7 @@ class GameClient:
         # Ask server to join a game
         # If we do get to join a game, set our player id and
         # reset the game state
+        # dummy method: wait for a few seconds
         pass
 
     def start_game(self):
