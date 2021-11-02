@@ -2,6 +2,13 @@
 
 A distributed, real-time competitive multiplayer game.
 
+## TODO
+- Fix rendering of background (possibly calculate world-to-screen transform)
+- Cull/bound entities on world space coordinates, not screen space
+- Add 'knockback' to hits
+- Add player KO
+- Add win/loss conditions
+
 ## challenges
 
 Abstractly, the goal of this project is to maintain a highly available, consistent system where all users manipulate a shared state and can respond to each others' changes in real time. 

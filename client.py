@@ -20,7 +20,7 @@ def main():
             elif game_display.state == "waiting":
                 # initialize waiting room
                 game_client.start_game()
-                game_client.engine.add_user(game_client.player_id)
+                player = game_client.engine.add_user(game_client.player_id, (100, 100))
                 game_client.engine.add_user(1, (500, 500))
 
                 # ask to join a game
@@ -33,6 +33,7 @@ def main():
             # update game state
             game_client.advance_game()
             # draw game
+            game_display.focus_entity(player)
             game_display.draw_frame(game_client)
 
 

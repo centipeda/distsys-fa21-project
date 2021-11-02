@@ -1,7 +1,6 @@
 """Class definitions for running, hosting, and drawing the game."""
 
 import pygame, pygame.font
-from pygame import mouse
 import sys
 import time
 import socket
@@ -51,6 +50,11 @@ class GameDisplay:
                     self.state = "quit"
                 if self.start_rect.collidepoint(mouse_pos):
                     self.state = "waiting"
+    
+    def focus_entity(self, entity):
+        """Center camera on entity by setting camera position to entity's position."""
+        x,y = entity.position
+        self.camera_pos = (x-SCREEN_WIDTH/2, y-SCREEN_HEIGHT/2)
 
     def draw_titlescreen(self):
         """Draws the current state of the title screen to the screen."""
@@ -70,17 +74,23 @@ class GameDisplay:
         pygame.draw.rect(self.screen, COLOR_BLACK, r, width=1)
 
         pygame.display.flip()
+
+    def world_to_screen_pos(self, position):
+        pass
     
     def draw_frame(self, client):
         """Draws the current state of the game to the screen."""
         engine = client.engine
+        cam_x, cam_y = self.camera_pos
         # draw background
         pygame.draw.rect(self.screen, COLOR_WHITE, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+        # draw arena
+        pygame.draw.rect(self.screen, COLOR_GRAY, (-cam_x, -cam_y, ARENA_SIZE-cam_x, ARENA_SIZE-cam_y))
 
         # draw each entity
-        for entity in engine.entities:
+        for entity_id in engine.entities:
+            entity = engine.entities[entity_id]
             ent_x, ent_y = entity.position
-            cam_x, cam_y = self.camera_pos
             draw_pos = (ent_x-cam_x, ent_y-cam_y)
             # draw player entity
             if entity.kind == game_objects.EntityKind.PLAYER:
@@ -104,14 +114,14 @@ class GameEngine:
 
     def __init__(self):
         self.current_tick = 0
-        self.entities = []
+        self.entities = {}
         self.inputs = {}
         self.frames = {}
     
     def register_input(self, uid, user_input, tick=None):
         """Adds a set of input corresponding to a single tick."""
         if tick is None:
-            tick = self.current_tick
+            tick = self.current_tick + GLOBAL_INPUT_DELAY
         if tick not in self.inputs:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
@@ -123,31 +133,88 @@ class GameEngine:
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
         of all game entities."""
-        for entity in self.entities:
+        to_delete = set()
+        to_add = []
+        for entity_id in self.entities:
+            entity = self.entities[entity_id]
+
+            # calculate collisions
+            collisions = self.check_collisions()
+
+            # process this frame's input
             if entity.kind == game_objects.EntityKind.PLAYER:
                 if self.current_tick in self.inputs and entity.uid in self.inputs[self.current_tick]:
                     entity.update_velocity(self.inputs[self.current_tick][entity.uid])
                     if self.inputs[self.current_tick][entity.uid]['fired']:
                         p = entity.shoot_projectile()
                         if p is not None:
-                            self.entities.append(p)
-            elif entity.kind == game_objects.EntityKind.PROJECTILE:
-                if entity.to_delete:
-                    self.entities.remove(entity)
-                    print(f'deleting {entity}')
-                    continue
-                hit = entity.check_collisions(self.entities)
-                if hit is not None:
-                    print(f'hit {hit}!')
+                            to_add.append(p)
+
+            # process projectile collisions
+            if entity.kind == game_objects.EntityKind.PROJECTILE:
+                if id(entity) in collisions:
+                    _colls = collisions[id(entity)]
+                    for collided in _colls:
+                        if collided.kind == game_objects.EntityKind.PLAYER and collided.uid != entity.owner_uid:
+                            print(f"projectile {entity} hit player {collided}!")
+                            to_delete.add(entity)
+                        elif collided.kind == game_objects.EntityKind.PROJECTILE:
+                            print("projectile {entity} hit projectile {collided}...")
+                # if the projectile has gone past the screen
+                if entity.bound_position() != entity.position:
+                    to_delete.add(entity)
+
+            # update positions based on collisions
             entity.update_position()
 
+        # cull entities
+        for e in to_delete:
+            self.remove_entity(e)
+            print(f'deleting {entity}')
+        # add entities
+        for e in to_add:
+            self.add_entity(e)
+
+        # advance tick
         self.current_tick += 1
+
+    def check_collisions(self):
+        """Checks all combinations of entities for collisions with other entities.
+        
+        Returns a dict, where keys are the id of each Entity and the values are a list 
+        of other entities the Entity has collided with."""
+        # this is O(N^2)... we can turn it into an O(N) algorithm
+        # with something like the GJK distance algorithm, but we'll
+        # cross that bridge when we get to it
+        all_collisions = {}
+        for entity_id in self.entities:
+            entity = self.entities[entity_id]
+            collisions = []
+            for entity_id2 in self.entities:
+                if entity_id2 == entity_id:
+                    continue
+                other = self.entities[entity_id2]
+                if self.collided(entity, other):
+                    collisions.append(other)
+            if collisions:
+                all_collisions[entity_id] = collisions
+        return all_collisions
+    
+    def collided(self, a, b):
+        """Checks whether two Entities A and B have collided by
+        comparing the distance between their centres with their
+        respective sizes."""
+        ax,ay = a.position
+        bx,by = b.position
+        distance = ( (ax-bx)**2 + (ay-by)**2 )**0.5
+        # if distance minus both sizes is zero, the entities
+        # have collided
+        return ((distance - a.size - b.size) < 0)
 
     def add_user(self, uid, position=(0,0)):
         """Adds a user to a waiting or ongoing match."""
         # instantiate new Player
-        new_player = game_objects.Player(uid=uid, position=position)
-        self.entities.append(new_player)
+        return self.add_entity(game_objects.Player(uid=uid, position=position))
 
     def remove_user(self, uid):
         """Removes a user to a waiting or ongoing match."""
@@ -156,6 +223,13 @@ class GameEngine:
     def rollback_to(self, tick, begin_tick=0):
         """Rolls the game state back to what it was at the specified tick."""
         pass
+
+    def add_entity(self, entity):
+        self.entities[id(entity)] = entity
+        return entity
+    
+    def remove_entity(self, entity):
+        return self.entities.pop(id(entity))
 
 class GameClient:
     """Faciliates communication between the user and the server's game states."""

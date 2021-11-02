@@ -9,6 +9,7 @@ COLOR_WHITE = (255, 255, 255)
 COLOR_BLACK = (0,0,0)
 COLOR_RED   = (255, 0, 0)
 COLOR_BLUE   = (0, 0, 255)
+COLOR_GRAY  = (153, 153, 153)
 
 GAME_TITLE = "Lag Warriors"
 
@@ -17,7 +18,10 @@ SERVER_PORT = 5555
 
 # Game config settings.
 
-ARENA_SIZE  = 600 # pixels
+# How many ticks in advance inputs are scheduled for.
+GLOBAL_INPUT_DELAY = 3
+
+ARENA_SIZE  = 1000 # pixels
 # Minimum players to start a match.
 MIN_PLAYERS = 2
 # Maximum players in a match.
@@ -28,4 +32,4 @@ PLAYER_SIZE = 20 # px
 PROJECTILE_SPEED = 10 # px/tick
 PROJECTILE_SIZE  = 10 # px
 GUIDELINE_LENGTH = 40
-GUIDELINE_WIDTH  = 10
+GUIDELINE_WIDTH  = 5
