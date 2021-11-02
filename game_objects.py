@@ -33,12 +33,12 @@ class GameEntity:
         x,y = self.position
         if x-self.size < 0:
             x = self.size
-        elif x+self.size > SCREEN_WIDTH:
-            x = SCREEN_WIDTH-self.size
+        elif x+self.size > ARENA_SIZE:
+            x = ARENA_SIZE-self.size
         if y-self.size < 0:
             y = self.size
-        elif y+self.size > SCREEN_HEIGHT:
-            y = SCREEN_HEIGHT-self.size
+        elif y+self.size > ARENA_SIZE:
+            y = ARENA_SIZE-self.size
         return (x,y)
         
 

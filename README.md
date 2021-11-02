@@ -3,8 +3,6 @@
 A distributed, real-time competitive multiplayer game.
 
 ## TODO
-- Fix rendering of background (possibly calculate world-to-screen transform)
-- Cull/bound entities on world space coordinates, not screen space
 - Add 'knockback' to hits
 - Add player KO
 - Add win/loss conditions

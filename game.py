@@ -2,12 +2,10 @@
 
 import pygame, pygame.font
 import sys
-import time
-import socket
 import math
 
 from globalvars import *
-import game_objects
+from game_objects import Player,EntityKind
 
 class GameDisplay:
     """Renders the game state to the screen."""
@@ -24,7 +22,7 @@ class GameDisplay:
     def get_center_pos(self, font, text, ypos):
         """Returns the top-lef tposition to render it at the center of the screen
         with the given font, text, and vertical position."""
-        width, height = font.size(text)
+        width, _height = font.size(text)
         xpos = (SCREEN_WIDTH / 2) - width/2
         return (xpos, ypos)
     
@@ -55,6 +53,7 @@ class GameDisplay:
         """Center camera on entity by setting camera position to entity's position."""
         x,y = entity.position
         self.camera_pos = (x-SCREEN_WIDTH/2, y-SCREEN_HEIGHT/2)
+        self.camera_pos = (x,y)
 
     def draw_titlescreen(self):
         """Draws the current state of the title screen to the screen."""
@@ -76,7 +75,10 @@ class GameDisplay:
         pygame.display.flip()
 
     def world_to_screen_pos(self, position):
-        pass
+        x,y = position
+        cam_x, cam_y = self.camera_pos
+        p = (x-cam_x+SCREEN_WIDTH/2, y-cam_y+SCREEN_HEIGHT/2)
+        return p
     
     def draw_frame(self, client):
         """Draws the current state of the game to the screen."""
@@ -84,26 +86,25 @@ class GameDisplay:
         cam_x, cam_y = self.camera_pos
         # draw background
         pygame.draw.rect(self.screen, COLOR_WHITE, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
-        # draw arena
-        pygame.draw.rect(self.screen, COLOR_GRAY, (-cam_x, -cam_y, ARENA_SIZE-cam_x, ARENA_SIZE-cam_y))
+        arena_rect = pygame.Rect(self.world_to_screen_pos((0,0)), (ARENA_SIZE, ARENA_SIZE))
+        pygame.draw.rect(self.screen, COLOR_GRAY, arena_rect)
 
         # draw each entity
         for entity_id in engine.entities:
             entity = engine.entities[entity_id]
-            ent_x, ent_y = entity.position
-            draw_pos = (ent_x-cam_x, ent_y-cam_y)
+            ent_x, ent_y = self.world_to_screen_pos(entity.position)
             # draw player entity
-            if entity.kind == game_objects.EntityKind.PLAYER:
-                pygame.draw.circle(self.screen, COLOR_RED, draw_pos, PLAYER_SIZE)
+            if entity.kind == EntityKind.PLAYER:
+                pygame.draw.circle(self.screen, COLOR_RED, (ent_x,ent_y), PLAYER_SIZE)
                 if entity.uid == client.player_id:
                     dir_x,dir_y = entity.direction
                     angle = math.atan2(dir_y,dir_x)
-                    l_x = (ent_x-cam_x) + GUIDELINE_LENGTH*math.cos(angle)
-                    l_y = (ent_y-cam_y) + GUIDELINE_LENGTH*math.sin(angle)
-                    pygame.draw.line(self.screen, COLOR_RED, draw_pos, (l_x,l_y), GUIDELINE_WIDTH)
+                    l_x = ent_x + GUIDELINE_LENGTH*math.cos(angle)
+                    l_y = ent_y + GUIDELINE_LENGTH*math.sin(angle)
+                    pygame.draw.line(self.screen, COLOR_RED, (ent_x,ent_y), (l_x,l_y), GUIDELINE_WIDTH)
             # draw projectile
-            elif entity.kind == game_objects.EntityKind.PROJECTILE:
-                pygame.draw.circle(self.screen, COLOR_BLUE, draw_pos, PROJECTILE_SIZE)
+            elif entity.kind == EntityKind.PROJECTILE:
+                pygame.draw.circle(self.screen, COLOR_BLUE, (ent_x,ent_y), PROJECTILE_SIZE)
 
         # flip display
         pygame.display.flip()
@@ -142,7 +143,7 @@ class GameEngine:
             collisions = self.check_collisions()
 
             # process this frame's input
-            if entity.kind == game_objects.EntityKind.PLAYER:
+            if entity.kind == EntityKind.PLAYER:
                 if self.current_tick in self.inputs and entity.uid in self.inputs[self.current_tick]:
                     entity.update_velocity(self.inputs[self.current_tick][entity.uid])
                     if self.inputs[self.current_tick][entity.uid]['fired']:
@@ -151,16 +152,18 @@ class GameEngine:
                             to_add.append(p)
 
             # process projectile collisions
-            if entity.kind == game_objects.EntityKind.PROJECTILE:
+            if entity.kind == EntityKind.PROJECTILE:
                 if id(entity) in collisions:
                     _colls = collisions[id(entity)]
                     for collided in _colls:
-                        if collided.kind == game_objects.EntityKind.PLAYER and collided.uid != entity.owner_uid:
-                            print(f"projectile {entity} hit player {collided}!")
+                        if collided.kind == EntityKind.PLAYER and collided.uid != entity.owner_uid:
+                            # print(f"projectile {entity} hit player {collided}!")
                             to_delete.add(entity)
-                        elif collided.kind == game_objects.EntityKind.PROJECTILE:
-                            print("projectile {entity} hit projectile {collided}...")
-                # if the projectile has gone past the screen
+                        elif collided.kind == EntityKind.PROJECTILE:
+                            # print("projectile {entity} hit projectile {collided}...")
+                            to_delete.add(entity)
+                            to_delete.add(collided)
+                # delete if the projectile has gone past the screen
                 if entity.bound_position() != entity.position:
                     to_delete.add(entity)
 
@@ -214,7 +217,7 @@ class GameEngine:
     def add_user(self, uid, position=(0,0)):
         """Adds a user to a waiting or ongoing match."""
         # instantiate new Player
-        return self.add_entity(game_objects.Player(uid=uid, position=position))
+        return self.add_entity(Player(uid=uid, position=position))
 
     def remove_user(self, uid):
         """Removes a user to a waiting or ongoing match."""
