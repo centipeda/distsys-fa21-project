@@ -30,7 +30,7 @@ def main():
                 continue
             game_display.draw_titlescreen()
         elif game_display.state == "waiting":
-            print("tick", game_client.engine.current_tick)
+            # print("tick", game_client.engine.current_tick)
             # get input
             game_client.process_input()
             # update game state

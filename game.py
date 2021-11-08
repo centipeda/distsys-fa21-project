@@ -118,11 +118,12 @@ class GameEngine:
         self.entities = {}
         self.inputs = {}
         self.frames = {}
+        self.input_delay = GLOBAL_INPUT_DELAY
     
     def register_input(self, uid, user_input, tick=None):
         """Adds a set of input corresponding to a single tick."""
         if tick is None:
-            tick = self.current_tick + GLOBAL_INPUT_DELAY
+            tick = self.current_tick + self.input_delay
         if tick not in self.inputs:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
@@ -150,6 +151,8 @@ class GameEngine:
                         p = entity.shoot_projectile()
                         if p is not None:
                             to_add.append(p)
+                else:
+                    entity.update_velocity()
 
             # process projectile collisions
             if entity.kind == EntityKind.PROJECTILE:
@@ -157,10 +160,9 @@ class GameEngine:
                     _colls = collisions[id(entity)]
                     for collided in _colls:
                         if collided.kind == EntityKind.PLAYER and collided.uid != entity.owner_uid:
-                            # print(f"projectile {entity} hit player {collided}!")
+                            collided.take_hit(entity)
                             to_delete.add(entity)
                         elif collided.kind == EntityKind.PROJECTILE:
-                            # print("projectile {entity} hit projectile {collided}...")
                             to_delete.add(entity)
                             to_delete.add(collided)
                 # delete if the projectile has gone past the screen

@@ -3,7 +3,6 @@
 A distributed, real-time competitive multiplayer game.
 
 ## TODO
-- Add 'knockback' to hits
 - Add player KO
 - Add win/loss conditions
 
