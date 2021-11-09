@@ -3,6 +3,8 @@
 A distributed, real-time competitive multiplayer game.
 
 ## TODO
+- Unify message receive functions
+- Implement rollback
 - Add player KO
 - Add win/loss conditions
 
@@ -35,12 +37,36 @@ Some parameters will need to be tuned to ensure the system is truly functional:
 
 ### communication
 
-To stnadardize communication between client/server, we must define a communication protocol. Some messages we may implement, along with their parameters:
+To standardize communication between client/server, we must define a communication protocol. Some messages we may implement, along with their parameters:
 
 - `JOIN_MATCH`: sent to server to request joining a match/creating a new match
 - `MATCH_JOINED(user_id, match_id)`: sent to client to indicate a match has been joined, along with a match identifier to tell the server what match a user is a part of, as well as a user identifier to tell the server what inputs belong to what user.
-- `INPUT(tick, inputs)`: sent to server and to clients to indicate some input has happened
+- `INPUT(tick, user_id, inputs)`: sent to server and to clients to indicate some input has happened
 - `MATCH_END(winner)`: sent to clients to indicate the match ended and who won
+- `GAME_STATE(entities, tick)`: sent to clients to re-synchronize the game state and
+ensure that the connection is still maintained
+
+If these messages are JSON-encoded, they may look like this:
+
+```
+{
+  "method": "GAME_STATE",
+  "entities": [
+    { "kind": "player", "position": [200, 300], "velocity": [-3, 4], "knockback": 32 },
+    { "kind": "projectile", "position": [40, 500], "velocity": [3, 20] }
+  ],
+  "tick": 402
+}
+
+{
+  "method": "USER_INPUT",
+  "input_state": {
+    pygame.K_w: true, pygame.K_a: false, pygame.K_s: false, pygame.K_d: false, 'fired': true
+  },
+  "user_id": 3853,
+  "tick": 320
+}
+```
 
 ### code organization
 

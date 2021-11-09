@@ -29,8 +29,10 @@ def main():
                 game_client.join_game()
                 continue
             game_display.draw_titlescreen()
+
         elif game_display.state == "waiting":
-            # print("tick", game_client.engine.current_tick)
+            print("tick", game_client.engine.current_tick)
+            game_client.update_server()
             # get input
             game_client.process_input()
             # update game state
@@ -38,7 +40,6 @@ def main():
             # draw game
             game_display.focus_entity(player)
             game_display.draw_frame(game_client)
-
 
 if __name__ == "__main__":
     main()

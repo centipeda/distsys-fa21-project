@@ -3,9 +3,13 @@
 import pygame, pygame.font
 import sys
 import math
+import socket
+import select
+import pickle
+import json
 
 from globalvars import *
-from game_objects import Player,EntityKind
+from game_objects import Player,EntityKind,spawn_entity
 
 class GameDisplay:
     """Renders the game state to the screen."""
@@ -119,7 +123,17 @@ class GameEngine:
         self.inputs = {}
         self.frames = {}
         self.input_delay = GLOBAL_INPUT_DELAY
-    
+
+    def register_state(self, game_state=None):
+        """Saves a state of the game to the engine. If a game state
+        dict is not passed, it will save the current state of the game."""
+        if game_state is None:
+            game_state = {
+                "entities": [e.serialize() for e in self.entities],
+                "tick": self.current_tick
+            }
+        self.frames[game_state['tick']] = game_state
+
     def register_input(self, uid, user_input, tick=None):
         """Adds a set of input corresponding to a single tick."""
         if tick is None:
@@ -128,9 +142,23 @@ class GameEngine:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
     
+    def load_state(self, tick=None):
+        """Load game state as recorded from the given tick. If we don't have
+        a game state from that tick, load from the next earliest tick."""
+        if tick is None:
+            tick = self.current_tick
+        while tick not in self.frames:
+            tick -= 1
+        self.entities = [spawn_entity(e) for e in self.frames[tick]]
+
     def init_game(self):
         """Sets up or resets variables needed to start a game."""
-        pass
+        self.current_tick = 0
+        self.entities = {}
+        self.inputs = {}
+        self.frames = {}
+        # register frame 0 so we always have some data to rollback to
+        self.register_state()
 
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
@@ -152,6 +180,8 @@ class GameEngine:
                         if p is not None:
                             to_add.append(p)
                 else:
+                    if entity.out_of_bounds():
+                        print(f"{entity} out of bounds!")
                     entity.update_velocity()
 
             # process projectile collisions
@@ -239,8 +269,9 @@ class GameEngine:
 class GameClient:
     """Faciliates communication between the user and the server's game states."""
     def __init__(self):
-        self.server_host = None
-        self.server_port = None
+        self.socket = None
+        self.server_host = SERVER_HOST
+        self.server_port = SERVER_PORT
         self.engine = GameEngine()
         self.input_state = {
             pygame.K_w : False,
@@ -250,6 +281,9 @@ class GameClient:
             'fired': False
         }
         self.player_id = 0
+        self.match_id = 0
+        self.incoming_messages = []
+        self.outgoing_messages = []
 
     def get_input(self):
         input_state = dict(self.input_state)
@@ -285,34 +319,99 @@ class GameClient:
             self.send_input()
             # send input to game engine
             self.engine.register_input(self.player_id, self.input_state)
-
-
+    
+    def recv_state(self):
+        """Checks if there is a game state update from the server, if so,
+        register it with the game engine."""
+    
     def recv_input(self):
         """Checks if there is input from the server, and updates
         the local game state accordingly."""
-
-    def advance_game(self):
-        self.engine.advance_tick()
-
+        remaining_messages = []
+        for message in self.incoming_messages:
+            if message['method'] == "USER_INPUT":
+                self.engine.register_input(message['user_id'],
+                    message['input_state'],
+                    tick=message['tick']
+                )
+            else:
+                # only get the user input messages from the queue
+                remaining_messages.append(message)
+        self.incoming_messages = remaining_messages
+    
     def send_input(self):
         """Sends the current input state to the server."""
-        pass
+        msg = {
+            "method": "USER_INPUT",
+            "user_id": self.player_id,
+            "input_state": self.input_state,
+            "tick": self.engine.current_tick
+        }
+        self.send_msg(msg)
 
-    def connect(self, host, port):
-        """Connects to a server listening on the given host and port."""
-        pass
+    def send_msg(self, message):
+        """Formats a message (a dict) to be send to the server and adds
+        it to the outgoing message queue."""
+        self.outgoing_messages.append(pickle.dumps(json.dumps(message)+PACKET_TERM))
 
+    def connect_server(self):
+        """Connects to a server listening on the given host and port, and
+        sets the socket property of this client."""
+        self.socket = socket.create_connection((self.server_host, self.server_port))
+        return self.socket
+
+    def update_server(self):
+        """Checks if packet has come in from the server, and add the 
+        contents of the packet to the incoming queue if so. Additionally,
+        checks if the server socket is ready for writing, in which case
+        send a message from the outgoing queue."""
+        [readable, writable, x] = select.select([self.socket], [self.socket], [], 0)
+        if self.socket in readable:
+            data = b''
+            while not data.endswith(b'\0'):
+                packet = self.socket.recv(4096)
+                if not packet:
+                    self.socket.close()
+                    self.socket = None
+                    print("Socket connection to server broke!")
+                    break
+                data += packet
+            # drop null byte
+            # replace with unmarshaling procedure here
+            self.incoming_messages.append(json.loads(pickle.loads(data[:-1])))
+    
+        if self.socket in writable:
+            msg = self.outgoing_messages.pop(0)
+            self.socket.send(msg)
+
+    def advance_game(self):
+        """Advances the game engine by a single tick."""
+        self.engine.advance_tick()
+    
     def join_game(self):
         """Attempts to join a game on the host server."""
-        # Ask server to join a game
-        # If we do get to join a game, set our player id and
-        # reset the game state
-        # dummy method: wait for a few seconds
-        pass
+        if self.socket is None:
+            self.connect_server()
+        if self.socket is None:
+            return False
+        self.send_msg({"method": "JOIN_MATCH"})
 
     def start_game(self):
         """Starts the local game engine."""
         self.engine.init_game()
+
+    def check_join_game(self):
+        """Determines if a game has been joined. If so, set player ID
+        and reset the game state."""
+        remaining_messages = []
+        for message in self.incoming_messages:
+            if message['method'] == "MATCH_JOINED":
+                self.player_id = message['user_id']
+                self.match_id = message['match_id']
+                self.start_game()
+            else:
+                remaining_messages.append(message)
+        self.incoming_messages = remaining_messages
 
 class GameServer:
     """Manages users joining/leaving matches, determines when matches begin and end,

@@ -1,5 +1,9 @@
 """Global variables and configuration settings."""
 
+PACKET_READ_SIZE = 4096 # bytes
+PACKET_HEADER    = b'' # packet header
+PACKET_TERM      = b'\0'  # packet terminator
+
 FRAMERATE = 60 # frames per second
 
 SCREEN_WIDTH  = 800
