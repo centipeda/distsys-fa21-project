@@ -15,15 +15,18 @@ def main():
     # listen on a port for users who want to start a match
     game_server.listen(SERVER_HOST,SERVER_PORT)
 
-    # when enough users connect, start a match
-    game_server.start_match()
+    while True:
+        # wait for enough users to start a match
+        game_server.wait_for_match()
+
+        # when enough users connect, start a match
+        game_server.start_match()
     
-    # while the match is not over:
-    #     get inputs from each user
-    #     relay inputs to each other user
-    #     update the game state according to the inputs
-    #     check if the match is over
-    pass
+        # while the match is not over:
+        #     get inputs from each user
+        #     relay inputs to each other user
+        #     update the game state according to the inputs
+        #     check if the match is over
 
 if __name__ == "__main__":
     main()

@@ -430,7 +430,8 @@ class GameServer:
     def listen(self, addr, port):
         """Listens for users on the specified host and port."""
         self.socket.listen()
-
+    
+    def wait_for_match(self):
         #stores the sockets of clients + server
         socket_dict = {}
         socket_dict[self.socket] = 1
@@ -482,11 +483,11 @@ class GameServer:
         self.engine.init_game()
         for user in self.user_sockets:
             user.sendall(marshal_message({"method":"START_MATCH","startIn": 5}))
-        pass
 
-    def end_match(self):
+    def end_match(self, victor_id):
         """End a game, telling all users who the victor is."""
-        pass
+        for user in self.user_sockets:
+            user.sendall(marshal_message({"method":"END_MATCH","victor_id": victor_id}))
 
     def check_inputs(self):
         """Checks each player in the match for input."""
