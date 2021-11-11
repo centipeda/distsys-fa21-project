@@ -11,6 +11,7 @@ import json
 
 from globalvars import *
 from game_objects import Player,EntityKind,spawn_entity
+from helpers import marshal_message,unmarshal_message
 
 class GameDisplay:
     """Renders the game state to the screen."""
@@ -353,7 +354,7 @@ class GameClient:
     def send_msg(self, message):
         """Formats a message (a dict) to be send to the server and adds
         it to the outgoing message queue."""
-        self.outgoing_messages.append(pickle.dumps(json.dumps(message)+PACKET_TERM))
+        self.outgoing_messages.append(marshal_message(message))
 
     def connect_server(self):
         """Connects to a server listening on the given host and port, and
@@ -368,18 +369,18 @@ class GameClient:
         send a message from the outgoing queue."""
         [readable, writable, x] = select.select([self.socket], [self.socket], [], 0)
         if self.socket in readable:
-            data = b''
-            while not data.endswith(b'\0'):
-                packet = self.socket.recv(4096)
-                if not packet:
+            packet = b''
+            while not packet.endswith(b'\0'):
+                data = self.socket.recv(4096)
+                if not data:
                     self.socket.close()
                     self.socket = None
                     print("Socket connection to server broke!")
                     break
-                data += packet
+                packet += data
             # drop null byte
             # replace with unmarshaling procedure here
-            self.incoming_messages.append(json.loads(pickle.loads(data[:-1])))
+            self.incoming_messages.append(unmarshal_message(packet))
     
         if self.socket in writable:
             msg = self.outgoing_messages.pop(0)
@@ -454,20 +455,20 @@ class GameServer:
                             data.append(packet)
                             if packet.endswith(b'\0'):
                                 break
-                        request_data = pickle.loads(b''.join(data))
+                        request_data = unmarshal_message(b''.join(data))
                         response = {}
                         try: # Handle request, expect JOINMATCH
-                            if request_data == 'JOIN_MATCH':
+                            if request_data['method'] == 'JOIN_MATCH':
                                 print("JOINMATCH",s)
                                 self.user_sockets.append(conn)
                                 userId = str(uuid.uuid4()) # Generate unique ID for user
                                 self.engine.add_user(userId) # Add user to engine
-                                response = json.dumps({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId})
+                                response = {"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}
                             else: # Trash was sent, ignore then
                                 pass
                         except Exception:
                             pass
-                        s.sendall(pickle.dumps(json.dumps(response))+b'\0')
+                        s.sendall(marshal_message(response))
                     except: # If something with request goes wrong, remove from socket_dicts
                         try:
                             s.close()
@@ -480,7 +481,7 @@ class GameServer:
         users when the match will begin."""
         self.engine.init_game()
         for user in self.user_sockets:
-            user.sendall(pickle.dumps(json.dumps({"method":"START_MATCH","startIn": 5}))+b'\0')
+            user.sendall(marshal_message({"method":"START_MATCH","startIn": 5}))
         pass
 
     def end_match(self):
