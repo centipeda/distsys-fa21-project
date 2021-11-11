@@ -4,6 +4,7 @@ import pygame, pygame.font
 import sys
 import math
 import socket
+import uuid
 import select
 import pickle
 import json
@@ -421,14 +422,65 @@ class GameServer:
 
     def __init__(self):
         self.engine = GameEngine()
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.bind((SERVER_HOST, SERVER_PORT))
+        self.matchId = str(uuid.uuid4())
 
     def listen(self, addr, port):
         """Listens for users on the specified host and port."""
-        pass
+        self.socket.listen()
+
+        #stores the sockets of clients + server
+        socket_dict = {}
+        socket_dict[self.socket] = 1
+        
+        while len(self.user_sockets) < MIN_PLAYERS:
+            # Check for readable sockets
+            r_sockets, w_sockets, e_sockets = select.select(socket_dict, [], [])
+            while r_sockets:
+                s = r_sockets.pop()
+                if(s == self.socket):  # If the socket is the server, then accept the connection and add to dict
+                    (conn, addr) = s.accept()
+                    socket_dict[conn] = 1
+                else:  # If the socket is a client
+                    try:
+                        data = []
+                        while True:
+                            packet = s.recv(4096)
+                            if not packet:
+                                s.close()
+                                del(socket_dict[s])
+                                break
+                            data.append(packet)
+                            if packet.endswith(b'\0'):
+                                break
+                        request_data = pickle.loads(b''.join(data))
+                        response = {}
+                        try: # Handle request, expect JOINMATCH
+                            if request_data == 'JOIN_MATCH':
+                                print("JOINMATCH",s)
+                                self.user_sockets.append(conn)
+                                userId = str(uuid.uuid4()) # Generate unique ID for user
+                                self.engine.add_user(userId) # Add user to engine
+                                response = json.dumps({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId})
+                            else: # Trash was sent, ignore then
+                                pass
+                        except Exception:
+                            pass
+                        s.sendall(pickle.dumps(json.dumps(response))+b'\0')
+                    except: # If something with request goes wrong, remove from socket_dicts
+                        try:
+                            s.close()
+                            del(socket_dict[s])
+                        except:
+                            continue
 
     def start_match(self):
         """Begin a game, initializing the local game state and telling all
         users when the match will begin."""
+        self.engine.init_game()
+        for user in self.user_sockets:
+            user.sendall(pickle.dumps(json.dumps({"method":"START_MATCH","startIn": 5}))+b'\0')
         pass
 
     def end_match(self):
