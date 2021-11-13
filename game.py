@@ -6,8 +6,6 @@ import math
 import socket
 import uuid
 import select
-import pickle
-import json
 
 from globalvars import *
 from game_objects import Player,EntityKind,spawn_entity
@@ -354,7 +352,8 @@ class GameClient:
     def send_msg(self, message):
         """Formats a message (a dict) to be send to the server and adds
         it to the outgoing message queue."""
-        self.outgoing_messages.append(marshal_message(message))
+        msg = marshal_message(message)
+        self.outgoing_messages.append(msg)
 
     def connect_server(self):
         """Connects to a server listening on the given host and port, and
@@ -382,7 +381,7 @@ class GameClient:
             # replace with unmarshaling procedure here
             self.incoming_messages.append(unmarshal_message(packet))
     
-        if self.socket in writable:
+        if self.socket in writable and self.outgoing_messages:
             msg = self.outgoing_messages.pop(0)
             self.socket.send(msg)
 
@@ -400,7 +399,7 @@ class GameClient:
 
     def start_game(self):
         """Starts the local game engine."""
-        self.engine.init_game()
+        pass
 
     def check_join_game(self):
         """Determines if a game has been joined. If so, set player ID
@@ -426,6 +425,7 @@ class GameServer:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind((SERVER_HOST, SERVER_PORT))
         self.matchId = str(uuid.uuid4())
+        self.user_inputs = []
 
     def listen(self, addr, port):
         """Listens for users on the specified host and port."""
@@ -490,11 +490,28 @@ class GameServer:
 
     def check_inputs(self):
         """Checks each player in the match for input."""
-        pass
+        [readable, writable, x] = select.select(self.user_sockets, [], [], 0)
+        while readable:
+            user = readable.pop()
+            packet = b''
+            while not packet.endswith(b'\0'):
+                data = user.recv(4096)
+                if not data:
+                    user.close()
+                    print("Socket connection to client broke!")
+                    break
+                packet += data
+            # drop null byte
+            # replace with unmarshaling procedure here
+            self.user_inputs.append(unmarshal_message(packet))
 
-    def relay_inputs(self, inputs):
+    def relay_inputs(self):
         """Relays the given input to all other players
         in the match."""
+        while self.user_inputs:
+            current_input = self.user_inputs.pop()
+            for user in self.user_sockets:
+                user.sendall(marshal_message(current_input))
         pass
 
     def match_finished(self):
