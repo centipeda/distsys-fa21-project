@@ -8,7 +8,7 @@ import game
 from globalvars import FRAMERATE
 
 def main():
-    game_client  = game.GameClient()
+    game_client  = game.GameClient(server_host='localhost')
     game_display = game.GameDisplay()
     game_display.init_titlescreen()
     while True:
@@ -31,8 +31,8 @@ def main():
             game_display.draw_titlescreen()
 
         elif game_display.state == "waiting":
-            print("tick", game_client.engine.current_tick)
             game_client.update_server()
+            game_client.check_join_game()
             # get input
             game_client.process_input()
             # update game state

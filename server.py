@@ -13,7 +13,7 @@ def main():
     game_server = game.GameServer()
 
     # listen on a port for users who want to start a match
-    game_server.listen(SERVER_HOST,SERVER_PORT)
+    game_server.listen()
 
     while True:
         # wait for enough users to start a match
