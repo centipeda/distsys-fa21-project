@@ -328,15 +328,19 @@ class GameClient:
         """Checks if there is input from the server, and updates
         the local game state accordingly."""
         remaining_messages = []
-        for message in self.incoming_messages:
-            if message['method'] == "USER_INPUT":
-                self.engine.register_input(message['user_id'],
-                    message['input_state'],
-                    tick=message['tick']
-                )
-            else:
-                # only get the user input messages from the queue
-                remaining_messages.append(message)
+        while self.incoming_messages:
+            message = self.incoming_messages.pop()
+            try:
+                if message['method'] == "USER_INPUT":
+                    self.engine.register_input(message['user_id'],
+                        message['input_state'],
+                        tick=message['tick']
+                    )
+                else:
+                    # only get the user input messages from the queue
+                    remaining_messages.append(message)
+            except:
+                pass
         self.incoming_messages = remaining_messages
     
     def send_input(self):
@@ -456,19 +460,16 @@ class GameServer:
                             if packet.endswith(b'\0'):
                                 break
                         request_data = unmarshal_message(b''.join(data))
-                        response = {}
                         try: # Handle request, expect JOINMATCH
                             if request_data['method'] == 'JOIN_MATCH':
-                                print("JOINMATCH",s)
                                 self.user_sockets.append(conn)
                                 userId = str(uuid.uuid4()) # Generate unique ID for user
                                 self.engine.add_user(userId) # Add user to engine
-                                response = {"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}
+                                s.sendall(marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
                             else: # Trash was sent, ignore then
                                 pass
                         except Exception:
                             pass
-                        s.sendall(marshal_message(response))
                     except: # If something with request goes wrong, remove from socket_dicts
                         try:
                             s.close()
@@ -510,6 +511,7 @@ class GameServer:
         in the match."""
         while self.user_inputs:
             current_input = self.user_inputs.pop()
+            print(current_input)
             for user in self.user_sockets:
                 user.sendall(marshal_message(current_input))
         pass

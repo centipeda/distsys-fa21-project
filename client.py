@@ -26,16 +26,18 @@ def main():
                 game_client.engine.add_user(1, (500, 500))
 
                 # ask to join a game
-                #game_client.join_game()
+                game_client.join_game()
                 continue
             game_display.draw_titlescreen()
 
         elif game_display.state == "waiting":
             print("tick", game_client.engine.current_tick)
-            game_client.connect_server()
+            #game_client.connect_server()
             game_client.update_server()
+            game_client.recv_input()
             # get input
             game_client.process_input()
+            game_client.send_input()
             # update game state
             game_client.advance_game()
             # draw game
