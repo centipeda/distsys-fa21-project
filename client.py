@@ -35,7 +35,7 @@ def main():
             game_client.check_join_game()
             # get input
             game_client.process_input()
-            game_client.send_input()
+            #game_client.send_input()
             # update game state
             game_client.advance_game()
             # draw game

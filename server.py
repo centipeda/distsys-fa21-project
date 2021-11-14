@@ -24,15 +24,15 @@ def main():
     
         # while the match is not over:
         while True:
-            print(game_server.engine.current_tick)
+            #print(game_server.engine.current_tick)
             # get inputs from each user
-            game_server.check_inputs()
+            #game_server.check_inputs()
             # relay inputs to each other user
-            game_server.relay_inputs()
+            #game_server.relay_inputs()
             # update the game state according to the inputs
-            game_server.update_state()
+            #game_server.update_state()
             # check if the match is over
-            if not 1: # Replace with condition
+            if not True: # Replace with condition
                 game_server.end_match()
 
 if __name__ == "__main__":

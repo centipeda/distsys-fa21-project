@@ -446,7 +446,7 @@ class GameServer:
         socket_dict = {}
         socket_dict[self.socket] = 1
 
-        while len(socket_dict)-1 < MIN_PLAYERS:
+        while len(self.user_sockets)-1 < MIN_PLAYERS:
             # Check for readable sockets
             r_sockets, w_sockets, e_sockets = select.select(socket_dict, [], [], 0.1)
             while r_sockets:
@@ -471,7 +471,7 @@ class GameServer:
                                 self.user_sockets.append(conn)
                                 userId = str(uuid.uuid4()) # Generate unique ID for user
                                 self.engine.add_user(userId) # Add user to engine
-                                s.sendall(helpers.marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
+                                helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
                             else: # Trash was sent, ignore then
                                 pass
                         except Exception as e:
@@ -490,12 +490,12 @@ class GameServer:
         users when the match will begin."""
         self.engine.init_game()
         for user in self.user_sockets:
-            helpers.send_packet(helpers.marshal_message(user, {"method":"START_MATCH","startIn": 5}))
+            helpers.send_packet(user, helpers.marshal_message({"method":"START_MATCH","startIn": 5}))
 
     def end_match(self, victor_id):
         """End a game, telling all users who the victor is."""
         for user in self.user_sockets:
-            helpers.send_packet(helpers.marshal_message(user, {"method":"END_MATCH","victor_id": victor_id}))
+            helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
 
     def check_inputs(self):
         """Checks each player in the match for input."""
