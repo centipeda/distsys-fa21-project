@@ -352,6 +352,7 @@ class GameClient:
         update our local game state to prepare to start the match."""
         remaining_messages = []
         for message in self.incoming_messages:
+            print(message)
             if message['method'] == "MATCH_JOINED":
                 LOGGER.debug('got MATCH_JOINED: %s', message)
                 self.player_id = message['user_id']
@@ -464,20 +465,18 @@ class GameServer:
                         request_data = helpers.unmarshal_message(packet)
                         LOGGER.debug('data read from %s: %s', s, request_data)
 
-                        response = {}
                         try: # Handle request, expect JOIN_MATCH
                             if request_data['method'] == 'JOIN_MATCH':
                                 LOGGER.debug("JOINMATCH %s",s)
                                 self.user_sockets.append(conn)
                                 userId = str(uuid.uuid4()) # Generate unique ID for user
                                 self.engine.add_user(userId) # Add user to engine
-                                s.sendall(marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
+                                s.sendall(helpers.marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
                             else: # Trash was sent, ignore then
                                 pass
                         except Exception as e:
                             LOGGER.debug('err responding to join_match: %s', e)
                             
-                        helpers.send_packet(s, helpers.marshal_message(response))
                     except Exception as e: # If something with request goes wrong, remove from socket_dicts
                         LOGGER.debug("err %s - removing %s from clients", e, s)
                         try:
@@ -513,7 +512,7 @@ class GameServer:
                 packet += data
             # drop null byte
             # replace with unmarshaling procedure here
-            self.user_inputs.append(unmarshal_message(packet))
+            self.user_inputs.append(helpers.unmarshal_message(packet))
 
     def relay_inputs(self):
         """Relays the given input to all other players
@@ -522,7 +521,7 @@ class GameServer:
             current_input = self.user_inputs.pop()
             print(current_input)
             for user in self.user_sockets:
-                user.sendall(marshal_message(current_input))
+                user.sendall(helpers.marshal_message(current_input))
         pass
 
     def match_finished(self):
