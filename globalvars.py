@@ -1,7 +1,17 @@
 """Global variables and configuration settings."""
 
+# set to true to enable debug print statements
+DEBUG_ENABLED = True
+
+import logging
+# set up debug logging
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s %(asctime)s] %(message)s')
+LOGGER = logging.getLogger()
+if DEBUG_ENABLED:
+    LOGGER.setLevel(logging.DEBUG)
+
 PACKET_READ_SIZE = 4096 # bytes
-PACKET_HEADER    = b'' # packet header
+PACKET_HEADER    = b'\x57\x67' # packet header
 PACKET_TERM      = b'\0'  # packet terminator
 
 FRAMERATE = 60 # frames per second
@@ -17,7 +27,7 @@ COLOR_GRAY  = (153, 153, 153)
 
 GAME_TITLE = "Lag Warriors"
 
-SERVER_HOST = "localhost"
+SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 5555
 
 # Game config settings.

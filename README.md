@@ -3,7 +3,7 @@
 A distributed, real-time competitive multiplayer game.
 
 ## TODO
-- Unify message receive functions
+- Get basic server/client match begin working
 - Implement rollback
 - Add player KO
 - Add win/loss conditions
