@@ -12,7 +12,7 @@ if DEBUG_ENABLED:
 
 PACKET_READ_SIZE = 4096 # bytes
 PACKET_HEADER    = b'\x57\x67' # packet header
-PACKET_TERM      = b'\0'  # packet terminator
+PACKET_TERM      = b'\x57\x06'  # packet terminator
 
 FRAMERATE = 60 # frames per second
 
@@ -41,6 +41,8 @@ MIN_PLAYERS = 2
 # Maximum players in a match.
 MAX_PLAYERS = 2
 
+# How far from the edge of the arena players start at.
+PLAYER_START_OFFSET = 30
 PLAYER_SPEED = 5 # px/tick
 PLAYER_SIZE = 20 # px
 PROJECTILE_SPEED = 10 # px/tick

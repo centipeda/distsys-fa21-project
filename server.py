@@ -1,5 +1,6 @@
 """Executable for hosting matches."""
 
+import time
 import game
 import sys
 from globalvars import *
@@ -23,17 +24,24 @@ def main():
         game_server.start_match()
     
         # while the match is not over:
+        last_tick = time.time()
         while game_server.in_game:
             #print(game_server.engine.current_tick)
             # get inputs from each user
             game_server.check_inputs()
             # relay inputs to each other user
             game_server.relay_inputs()
-            # update the game state according to the inputs
-            game_server.update_state()
+
+            # check if we need to move to the next frame
+            t = time.time()
+            if t-last_tick > 1/FRAMERATE: # seconds per frame
+                last_tick = t
+                game_server.advance_game()
+
             # check if the match is over
-            if not game_server.check_end_match(): 
+            if game_server.match_finished(): 
                 game_server.end_match()
+
 
 if __name__ == "__main__":
     main()

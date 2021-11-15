@@ -59,11 +59,16 @@ If these messages are JSON-encoded, they may look like this:
 
 {
   "method": "USER_INPUT",
-  "input_state": {
-    pygame.K_w: true, pygame.K_a: false, pygame.K_s: false, pygame.K_d: false, 'fired': true
-  },
-  "user_id": 3853,
-  "tick": 320
+  "inputs": [
+    {
+    "input_state": {
+      pygame.K_w: true, pygame.K_a: false, pygame.K_s: false, pygame.K_d: false, 'fired': true
+    },
+    "user_id": 3853,
+    "tick": 320
+    },
+    ...
+  ]
 }
 ```
 

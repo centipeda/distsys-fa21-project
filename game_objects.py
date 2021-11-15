@@ -87,6 +87,7 @@ class Player(GameEntity):
         data['kind'] = "player"
         data['knockback'] = self.knockback
         data['uid'] = self.uid
+        return data
 
     def take_hit(self, projectile):
         """Apply effects of getting hit by a projectile."""
@@ -152,6 +153,7 @@ class Projectile(GameEntity):
         data = super().serialize()
         data['kind'] = 'projectile'
         data['owner_uid'] = self.owner_uid
+        return data
 
 def spawn_entity(entity_data):
     """Returns an Entity based on its serialized data."""
