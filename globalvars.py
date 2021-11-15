@@ -27,7 +27,7 @@ COLOR_GRAY  = (153, 153, 153)
 
 GAME_TITLE = "Lag Warriors"
 
-SERVER_HOST = "0.0.0.0"
+SERVER_HOST = "localhost"
 SERVER_PORT = 5555
 
 # Game config settings.

@@ -126,14 +126,18 @@ class GameEngine:
         self.frames = {}
         self.input_delay = GLOBAL_INPUT_DELAY
 
+    def serialize_current_state(self):
+        """Returns a dict representing the current state of the game."""
+        return {
+            "entities": [e.serialize() for e in self.entities],
+            "tick": self.current_tick
+        }
+
     def register_state(self, game_state=None):
         """Saves a state of the game to the engine. If a game state
         dict is not passed, it will save the current state of the game."""
         if game_state is None:
-            game_state = {
-                "entities": [e.serialize() for e in self.entities],
-                "tick": self.current_tick
-            }
+            game_state = self.serialize_current_state()
         self.frames[game_state['tick']] = game_state
 
     def register_input(self, uid, user_input, tick=None):
@@ -144,7 +148,15 @@ class GameEngine:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
     
-    def load_state(self, tick=None):
+    def load_state(self, game_state=None):
+        """Load the given game state to the current tick.  If one is not 
+        given, load the most recent game state we've been given."""
+        if game_state is not None:
+            self.entities = [spawn_entity(e) for e in game_state]
+        else:
+            self.load_last_state()
+    
+    def load_last_state(self, tick=None):
         """Load game state as recorded from the given tick. If we don't have
         a game state from that tick, load from the next earliest tick."""
         if tick is None:
@@ -153,14 +165,12 @@ class GameEngine:
             tick -= 1
         self.entities = [spawn_entity(e) for e in self.frames[tick]]
 
-    def init_game(self):
+    def reset_game(self):
         """Sets up or resets variables needed to start a game."""
         self.current_tick = 0
         self.entities = {}
         self.inputs = {}
         self.frames = {}
-        # register frame 0 so we always have some data to rollback to
-        self.register_state()
 
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
@@ -267,7 +277,7 @@ class GameEngine:
     
     def remove_entity(self, entity):
         return self.entities.pop(id(entity))
-
+    
 class GameClient:
     """Faciliates communication between the user and the server's game states."""
     def __init__(self, server_host=SERVER_HOST, server_port=SERVER_PORT):
@@ -348,19 +358,22 @@ class GameClient:
         """Checks if there is a match join update from the server, if so,
         update our local game state to prepare to start the match."""
         remaining_messages = []
+        m = None
         for message in self.incoming_messages:
-            print(message)
+            LOGGER.debug('%s', message)
             if message['method'] == "MATCH_JOINED":
                 LOGGER.debug('got MATCH_JOINED: %s', message)
                 self.player_id = message['user_id']
                 self.match_id = message['match_id']
-                self.start_game()
+                m = message
             elif message['method'] == "START_MATCH":
                 LOGGER.debug('got START_MATCH: %s', message)
                 time.delay(int(message['startIn']))
+                m = message
             else:
                 remaining_messages.append(message)
         self.incoming_messages = remaining_messages
+        return m
     
     def send_input(self):
         """Sends the current input state to the server."""
@@ -415,12 +428,12 @@ class GameClient:
 
     def start_game(self):
         """Starts the local game engine."""
-        self.engine.init_game()
+        self.engine.reset_game()
 
     def check_join_game(self):
         """Determines if a game has been joined. If so, set player ID
         and reset the game state."""
-        self.recv_join()
+        return self.recv_join()
 
 class GameServer:
     """Manages users joining/leaving matches, determines when matches begin and end,
@@ -431,9 +444,10 @@ class GameServer:
     def __init__(self):
         self.engine = GameEngine()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind((SERVER_HOST, SERVER_PORT))
+        self.socket.bind(("0.0.0.0", SERVER_PORT))
         self.matchId = str(uuid.uuid4())
         self.user_inputs = []
+        self.in_game = False
 
     def listen(self):
         """Listens for users on the specified host and port."""
@@ -488,9 +502,26 @@ class GameServer:
     def start_match(self):
         """Begin a game, initializing the local game state and telling all
         users when the match will begin."""
-        self.engine.init_game()
+
+        # set the starting positions, reset tick counter
+        self.engine.place_players()
+        self.engine.inputs = {}
+        self.engine.current_tick = 0
+        self.engine.register_state()
+
+        # save the current state to send to users
+        start_state = self.engine.serialize_current_state()
+        message = helpers.marshal_message({
+            "method": "START_MATCH",
+            "start_in": 5,
+            "state": start_state,
+            "tick": 0
+        })
+        # notify users of match start
         for user in self.user_sockets:
-            helpers.send_packet(user, helpers.marshal_message({"method":"START_MATCH","startIn": 5}))
+            helpers.send_packet(user, message)
+
+        self.in_game = True
 
     def end_match(self, victor_id):
         """End a game, telling all users who the victor is."""

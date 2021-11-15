@@ -8,7 +8,7 @@ import game
 from globalvars import FRAMERATE
 
 def main():
-    game_client  = game.GameClient(server_host='localhost')
+    game_client  = game.GameClient()
     game_display = game.GameDisplay()
     game_display.init_titlescreen()
     while True:
@@ -32,7 +32,9 @@ def main():
 
         elif game_display.state == "waiting":
             game_client.update_server()
-            game_client.check_join_game()
+            msg = game_client.check_join_game()
+            if msg is not None and msg['method'] == 'MATCH_JOINED':
+                player.uid = msg['user_id']
             # get input
             game_client.process_input()
             #game_client.send_input()

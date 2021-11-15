@@ -3,7 +3,6 @@
 A distributed, real-time competitive multiplayer game.
 
 ## TODO
-- Get basic server/client match begin working
 - Implement rollback
 - Add player KO
 - Add win/loss conditions
