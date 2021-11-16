@@ -62,7 +62,7 @@ def main():
 
             game_client.advance_game()
 
-            game_display.focus_entity(player)
+            game_display.focus_entity(game_client.get_player())
             game_display.draw_frame(game_client)
 
 if __name__ == "__main__":
