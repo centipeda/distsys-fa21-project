@@ -5,7 +5,7 @@ import sys
 import pygame
 
 import game
-from globalvars import FRAMERATE
+from globalvars import FRAMERATE, LOGGER
 
 def main():
     game_client  = game.GameClient()
@@ -52,7 +52,10 @@ def main():
             game_display.draw_frame(game_client)
         
         elif game_state == "match":
+            LOGGER.debug('tick: %d', game_client.engine.current_tick)
+
             game_client.update_server()
+            game_client.recv_input()
 
             game_client.process_input()
 

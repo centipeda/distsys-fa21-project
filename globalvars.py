@@ -12,7 +12,7 @@ if DEBUG_ENABLED:
 
 PACKET_READ_SIZE = 4096 # bytes
 PACKET_HEADER    = b'\x57\x67' # packet header
-PACKET_TERM      = b'\x57\x06'  # packet terminator
+PACKET_TERM      = b'\xF1\x54'  # packet terminator
 
 FRAMERATE = 60 # frames per second
 
@@ -33,7 +33,7 @@ SERVER_PORT = 5555
 # Game config settings.
 
 # How many ticks in advance inputs are scheduled for.
-GLOBAL_INPUT_DELAY = 3
+GLOBAL_INPUT_DELAY = 10
 
 ARENA_SIZE  = 1000 # pixels
 # Minimum players to start a match.

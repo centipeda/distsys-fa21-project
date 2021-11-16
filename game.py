@@ -152,7 +152,8 @@ class GameEngine:
         """Load the given game state to the current tick.  If one is not 
         given, load the most recent game state we've been given."""
         if game_state is not None:
-            self.frames[game_state['tick']] = game_state['entities']
+            self.frames[game_state['tick']] = game_state
+            self.current_tick = game_state['tick']
             self.entities = {}
             for e in game_state['entities']:
                 entity = spawn_entity(e)
@@ -358,11 +359,12 @@ class GameClient:
 
         # record/send input to server only if there's been a change
         if changed:
+            tick = self.engine.current_tick + GLOBAL_INPUT_DELAY
             self.input_state = new_state
             if self.live_match:
-                self.send_input()
+                self.send_input(tick)
             # send input to game engine
-            self.engine.register_input(self.player_id, self.input_state)
+            self.engine.register_input(self.player_id, self.input_state, tick=tick)
     
     def recv_state(self):
         """Checks if there is a game state update from the server, if so,
@@ -398,6 +400,7 @@ class GameClient:
                 m = message
             elif message['method'] == "START_MATCH":
                 LOGGER.debug('got START_MATCH: %s', message)
+                self.start_game()
                 self.engine.load_state(message['state'])
                 self.live_match = True
                 LOGGER.debug('sending ACK')
@@ -413,8 +416,8 @@ class GameClient:
         self.incoming_messages = remaining_messages
         return m
     
-    def send_input(self):
-        """Sends the current input state to the server."""
+    def send_input(self, tick):
+        """Sends the current input state to the server, scheduled for the given tick."""
         msg = {
             "method": "USER_INPUT",
             "user_id": self.player_id,
@@ -449,7 +452,7 @@ class GameClient:
 
         [readable, writable, x] = select.select([self.socket], [self.socket], [], 0)
 
-        if self.socket in readable:
+        if self.socket in readable or PACKET_HEADER in helpers.INCOMING_BUFFER:
             packet = helpers.recv_packet(self.socket)
             LOGGER.debug('read packet from server: %s', packet)
             if packet:
@@ -610,6 +613,7 @@ class GameServer:
             LOGGER.debug('input packet: %s', packet)
             for user in self.user_sockets:
                 helpers.send_packet(user, packet)
+            self.user_inputs = []
 
     def match_finished(self):
         """Determines whether the current match is over or not."""
