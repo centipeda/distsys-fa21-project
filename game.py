@@ -328,6 +328,7 @@ class GameClient:
         self.outgoing_messages = []
         # Whether we're in a waiting room or a real match.
         self.live_match = False
+        self.connect_server()
     
     def get_player(self):
         """Gets the player in the game engine matching our player ID."""
@@ -508,10 +509,10 @@ class GameServer:
     socket = None
     user_sockets = {}
 
-    def __init__(self):
+    def __init__(self, port=SERVER_PORT):
         self.engine = GameEngine()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(("0.0.0.0", SERVER_PORT))
+        self.socket.bind(("0.0.0.0", port))
         self.matchId = str(uuid.uuid4())
         self.user_inputs = []
         self.in_game = False

@@ -5,10 +5,17 @@ import sys
 import pygame
 
 import game
-from globalvars import FRAMERATE, LOGGER, STATE_SAVE_RATE
+from globalvars import FRAMERATE, LOGGER, SERVER_HOST, SERVER_PORT, STATE_SAVE_RATE
 
 def main():
-    game_client  = game.GameClient()
+    host = SERVER_HOST
+    port = SERVER_PORT
+    if len(sys.argv) > 1:
+        host = sys.argv[1]
+
+    LOGGER.debug('attempting to connnect to %s:%d...', host, port)
+
+    game_client  = game.GameClient(server_host=host,server_port=port)
     game_display = game.GameDisplay()
     game_display.init_titlescreen()
     game_state = "title"

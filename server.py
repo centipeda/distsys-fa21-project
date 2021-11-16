@@ -7,11 +7,18 @@ from globalvars import *
 
 def main():
     # accept command-line args, including where to listen
-    if len(sys.argv) != 1:
-        sys.exit("Usage: server.py")
+    if len(sys.argv) == 1:
+        port = SERVER_PORT
+    elif len(sys.argv) == 2:
+        try:
+            port = int(sys.argv[1])
+        except:
+            sys.exit("Usage: server.py [port]")
+    else:
+        sys.exit("Usage: server.py [port]")
 
     # set up GameServer object
-    game_server = game.GameServer()
+    game_server = game.GameServer(port=port)
 
     # listen on a port for users who want to start a match
     game_server.listen()
