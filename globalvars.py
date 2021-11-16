@@ -34,6 +34,9 @@ SERVER_PORT = 5555
 
 # How many ticks in advance inputs are scheduled for.
 GLOBAL_INPUT_DELAY = 10
+# How often the engine should record the current state for rollback.
+STATE_SAVE_RATE = 100 # ticks apart
+
 
 ARENA_SIZE  = 1000 # pixels
 # Minimum players to start a match.

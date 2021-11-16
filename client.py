@@ -5,7 +5,7 @@ import sys
 import pygame
 
 import game
-from globalvars import FRAMERATE, LOGGER
+from globalvars import FRAMERATE, LOGGER, STATE_SAVE_RATE
 
 def main():
     game_client  = game.GameClient()
@@ -52,7 +52,8 @@ def main():
             game_display.draw_frame(game_client)
         
         elif game_state == "match":
-            LOGGER.debug('tick: %d', game_client.engine.current_tick)
+            if game_client.engine.current_tick % STATE_SAVE_RATE == 0:
+                LOGGER.debug('saving frame on tick %d', game_client.engine.current_tick)
 
             game_client.update_server()
             game_client.recv_input()

@@ -148,7 +148,7 @@ class GameEngine:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
     
-    def load_state(self, game_state=None):
+    def load_state(self, game_state):
         """Load the given game state to the current tick.  If one is not 
         given, load the most recent game state we've been given."""
         if game_state is not None:
@@ -158,20 +158,6 @@ class GameEngine:
             for e in game_state['entities']:
                 entity = spawn_entity(e)
                 self.entities[id(entity)] = entity
-        else:
-            self.load_last_state()
-    
-    def load_last_state(self, tick=None):
-        """Load game state as recorded from the given tick. If we don't have
-        a game state from that tick, load from the next earliest tick."""
-        if tick is None:
-            tick = self.current_tick
-        while tick not in self.frames:
-            tick -= 1
-        self.entities = {}
-        for e in self.frames['tick']:
-            entity = spawn_entity(e)
-            self.entities[id(entity)] = entity
 
     def reset_game(self):
         """Sets up or resets variables needed to start a game."""
@@ -183,6 +169,10 @@ class GameEngine:
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
         of all game entities."""
+        # save the current state every STATE_SAVE_RATE frames
+        if self.current_tick % STATE_SAVE_RATE == 0:
+            self.register_state()
+
         to_delete = set()
         to_add = []
         for entity_id in self.entities:
@@ -275,9 +265,26 @@ class GameEngine:
         """Removes a user to a waiting or ongoing match."""
         pass
 
-    def rollback_to(self, tick, begin_tick=0):
-        """Rolls the game state back to what it was at the specified tick."""
-        pass
+    def rollback(self, begin_tick):
+        """Recalculates the current game state according to recorded inputs,
+        starting at begin_tick."""
+        tick_now = self.current_tick
+        self.rollback_to(begin_tick=begin_tick)
+        self.advance_to(tick_now)
+
+    def rollback_to(self, begin_tick=0):
+        """Rolls the game state back to what it was at the specified tick. If 
+        we don't have a game state from that tick, load from the next 
+        earliest tick."""
+        while begin_tick not in self.frames:
+            begin_tick -= 1
+        self.load_state(self.frames[begin_tick])
+        
+
+    def advance_to(self, tick):
+        """Advances the game state to the specified tick."""
+        while self.current_tick < tick:
+            self.advance_tick()
 
     def add_entity(self, entity):
         self.entities[id(entity)] = entity
@@ -372,15 +379,24 @@ class GameClient:
     
     def recv_input(self):
         """Checks if there is input from the server, and updates
-        the local game state accordingly."""
+        the local game state accordingly, including rolling back to
+        a previous game state to account for past input."""
         remaining_messages = []
         for message in self.incoming_messages:
             if message['method'] == "USER_INPUT":
+                lowest_tick = self.engine.current_tick
+                # register inputs from message
                 for player_input in message['inputs']:
                     self.engine.register_input(player_input['user_id'],
                         player_input['input_state'],
                         tick=player_input['tick']
                     )
+                    # check if we have an old message
+                    if player_input['tick'] < lowest_tick:
+                        lowest_tick = player_input['tick']
+                # if we have old input, roll back to account for it
+                if lowest_tick < self.engine.current_tick:
+                    self.engine.rollback(lowest_tick)
             else:
                 # only get the user input messages from the queue
                 remaining_messages.append(message)
