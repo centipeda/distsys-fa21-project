@@ -263,7 +263,7 @@ class GameEngine:
 
     def remove_user(self, uid):
         """Removes a user to a waiting or ongoing match."""
-        return self.remove_entity(uid)
+        return self.remove_entity(self.entities[uid])
 
     def rollback(self, begin_tick):
         """Recalculates the current game state according to recorded inputs,
@@ -398,6 +398,9 @@ class GameClient:
                 # if we have old input, roll back to account for it
                 if lowest_tick < self.engine.current_tick:
                     self.engine.rollback(lowest_tick)
+            elif message['method'] == "REMOVE_PLAYER":
+                # Remove user if server communicates so
+                self.engine.remove_user(message['user'])
             else:
                 # only get the user input messages from the queue
                 remaining_messages.append(message)
@@ -427,7 +430,7 @@ class GameClient:
                     }))
                 except Exception as e:
                     LOGGER.debug('err sending ACK: %s', e)
-                    self.communication_error_handler()
+                    return self.communication_error_handler()
                 for n in range(int(message['start_in']), 0, -1):
                     LOGGER.debug('starting in %d...', n)
                     time.delay(1000)
@@ -474,7 +477,11 @@ class GameClient:
         [readable, writable, x] = select.select([self.socket], [self.socket], [], 0)
 
         if self.socket in readable or PACKET_HEADER in helpers.INCOMING_BUFFER:
-            packet = helpers.recv_packet(self.socket)
+            try:
+                packet = helpers.recv_packet(self.socket)
+            except Exception as e:
+                    LOGGER.debug('err receiving message to server: %s', e)
+                    return self.communication_error_handler()
             LOGGER.debug('read packet from server: %s', packet)
             if packet:
                 self.incoming_messages.append(helpers.unmarshal_message(packet))
@@ -486,7 +493,7 @@ class GameClient:
                 helpers.send_packet(self.socket, msg)
             except Exception as e:
                     LOGGER.debug('err sending message to server: %s', e)
-                    self.communication_error_handler()
+                    return self.communication_error_handler()
         return True
 
     def advance_game(self):
@@ -511,8 +518,9 @@ class GameClient:
         return self.recv_join()
 
     def communication_error_handler(self):
+        """Handle a disconnect from server"""
         self.socket.close()
-        sys.exit("Communication Error")
+        return False
 
 class GameServer:
     """Manages users joining/leaving matches, determines when matches begin and end,
@@ -617,7 +625,7 @@ class GameServer:
             try:
                 helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
             except Exception as e:
-                LOGGER.debug('err with cocommunicating end_match() : %s', e)
+                LOGGER.debug('err with communicating end_match() : %s', e)
                 del(self.user_sockets[user])
 
     def check_inputs(self):
@@ -639,9 +647,7 @@ class GameServer:
                 })
             except OSError as e:
                 LOGGER.debug('err relaying input: %s', e)
-                LOGGER.debug('removing user: %s', self.user_sockets[user])
-                self.engine.remove_user(self.user_sockets[user])
-                del(self.user_sockets[user])
+                self.remove_user(user)
 
 
     def relay_inputs(self):
@@ -656,11 +662,9 @@ class GameServer:
             for user in self.user_sockets:
                 try:
                     helpers.send_packet(user, packet)
-                except Exception as e:
+                except OSError as e:
                     LOGGER.debug('err relaying input: %s', e)
-                    LOGGER.debug('removing user: %s', self.user_sockets[user])
-                    self.engine.remove_user(self.user_sockets[user])
-                    del(self.user_sockets[user])
+                    self.remove_user(user)
 
             self.user_inputs = []
 
@@ -671,3 +675,25 @@ class GameServer:
     def advance_game(self):
         """Advance the game engine by one tick."""
         self.engine.advance_tick()
+
+    def remove_user(self, user):
+        """Remove user when disconnect happens"""
+        LOGGER.debug('removing user: %s', self.user_sockets[user])
+        temp_user = id(self.user_sockets[user])
+        self.engine.remove_user(temp_user)
+        del(self.user_sockets[user])
+        
+        # Idea is to relay to all users that a user has disconnected. Having some issues with id's and which ones to send
+        '''
+        # Communicate to rest of players that this user has disconnected
+        message = helpers.marshal_message({
+            "method": "REMOVE_PLAYER",
+            "user": temp_user,
+        })
+        for player in self.user_sockets:
+            try:
+                helpers.send_packet(player, message)
+            except Exception as e:
+                LOGGER.debug('err sending REMOVE_PLAYER: %s', e)
+                self.remove_user(player)'''
+
