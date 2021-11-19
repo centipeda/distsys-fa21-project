@@ -263,7 +263,7 @@ class GameEngine:
 
     def remove_user(self, uid):
         """Removes a user to a waiting or ongoing match."""
-        pass
+        return self.remove_entity(uid)
 
     def rollback(self, begin_tick):
         """Recalculates the current game state according to recorded inputs,
@@ -421,9 +421,13 @@ class GameClient:
                 self.engine.load_state(message['state'])
                 self.live_match = True
                 LOGGER.debug('sending ACK')
-                helpers.send_packet(self.socket, helpers.marshal_message({
-                    "method": "ACKNOWLEDGE"
-                }))
+                try:
+                    helpers.send_packet(self.socket, helpers.marshal_message({
+                        "method": "ACKNOWLEDGE"
+                    }))
+                except Exception as e:
+                    LOGGER.debug('err sending ACK: %s', e)
+                    self.communication_error_handler()
                 for n in range(int(message['start_in']), 0, -1):
                     LOGGER.debug('starting in %d...', n)
                     time.delay(1000)
@@ -478,8 +482,11 @@ class GameClient:
         if self.socket in writable and self.outgoing_messages:
             LOGGER.debug('sending message to server')
             msg = self.outgoing_messages.pop(0)
-            helpers.send_packet(self.socket, msg)
-        
+            try:
+                helpers.send_packet(self.socket, msg)
+            except Exception as e:
+                    LOGGER.debug('err sending message to server: %s', e)
+                    self.communication_error_handler()
         return True
 
     def advance_game(self):
@@ -502,6 +509,10 @@ class GameClient:
         """Determines if a game has been joined. If so, set player ID
         and reset the game state."""
         return self.recv_join()
+
+    def communication_error_handler(self):
+        self.socket.close()
+        sys.exit("Communication Error")
 
 class GameServer:
     """Manages users joining/leaving matches, determines when matches begin and end,
@@ -550,9 +561,8 @@ class GameServer:
                         try: # Handle request, expect JOIN_MATCH
                             if request_data['method'] == 'JOIN_MATCH':
                                 LOGGER.debug("JOINMATCH %s",s)
-                                self.user_sockets[conn] = 1
                                 userId = str(uuid.uuid4()) # Generate unique ID for user
-                                self.engine.add_user(userId) # Add user to engine
+                                self.user_sockets[conn] = self.engine.add_user(userId) # Add user to engine
                                 helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
                             else: # Trash was sent, ignore then
                                 pass
@@ -588,7 +598,11 @@ class GameServer:
         })
         # notify users of match start
         for user in self.user_sockets:
-            helpers.send_packet(user, message)
+            try:
+                helpers.send_packet(user, message)
+            except Exception as e:
+                LOGGER.debug('err sending START_MATCH: %s', e)
+                del(self.user_sockets[user])
 
         # wait for users to reply to start on server-side
         for user in self.user_sockets:
@@ -600,24 +614,35 @@ class GameServer:
     def end_match(self, victor_id):
         """End a game, telling all users who the victor is."""
         for user in self.user_sockets:
-            helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
+            try:
+                helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
+            except Exception as e:
+                LOGGER.debug('err with cocommunicating end_match() : %s', e)
+                del(self.user_sockets[user])
 
     def check_inputs(self):
         """Checks each player in the match for input."""
         [readable, w, x] = select.select(self.user_sockets, [], [], 0)
         while readable:
             user = readable.pop()
-            packet = helpers.recv_packet(user)
-            if packet is None:
+            try:
+                packet = helpers.recv_packet(user)
+                if packet is None:
+                    del(self.user_sockets[user])
+                    continue
+                message = helpers.unmarshal_message(packet)
+                self.engine.register_input(message['user_id'], message['input_state'], message['tick'])
+                self.user_inputs.append({
+                    "user_id": message['user_id'],
+                    "input_state": message['input_state'],
+                    "tick": message['tick']
+                })
+            except OSError as e:
+                LOGGER.debug('err relaying input: %s', e)
+                LOGGER.debug('removing user: %s', self.user_sockets[user])
+                self.engine.remove_user(self.user_sockets[user])
                 del(self.user_sockets[user])
-                continue
-            message = helpers.unmarshal_message(packet)
-            self.engine.register_input(message['user_id'], message['input_state'], message['tick'])
-            self.user_inputs.append({
-                "user_id": message['user_id'],
-                "input_state": message['input_state'],
-                "tick": message['tick']
-            })
+
 
     def relay_inputs(self):
         """Relays the given input to all other players
@@ -629,7 +654,14 @@ class GameServer:
             })
             LOGGER.debug('input packet: %s', packet)
             for user in self.user_sockets:
-                helpers.send_packet(user, packet)
+                try:
+                    helpers.send_packet(user, packet)
+                except Exception as e:
+                    LOGGER.debug('err relaying input: %s', e)
+                    LOGGER.debug('removing user: %s', self.user_sockets[user])
+                    self.engine.remove_user(self.user_sockets[user])
+                    del(self.user_sockets[user])
+
             self.user_inputs = []
 
     def match_finished(self):

@@ -17,7 +17,7 @@ def marshal_message(message):
 def unmarshal_message(packet):
     """Accepts a bytestring packet from a socket and converts to a message dict."""
     # LOGGER.debug('unstripped: %s',packet)
-    message = packet.removeprefix(PACKET_HEADER).removesuffix(PACKET_TERM)
+    message = packet[packet.find(PACKET_HEADER)+len(PACKET_HEADER):packet.rfind(PACKET_TERM)]
     LOGGER.debug('stripped: %s',message)
     message = json.loads(pickle.loads(message))
     # unmarshal input state
