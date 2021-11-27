@@ -25,8 +25,11 @@ class GameDisplay:
         self.camera_pos = (0,0)
         self.title_font = pygame.font.Font('assets/Iceland-Regular.ttf', 96)
         self.menu_font  = pygame.font.Font('assets/Iceland-Regular.ttf', 48)
+        self.message_font = pygame.font.Font('assets/CourierPrime-Regular.ttf', 18)
         self.top_button_rect = None
         self.bot_button_rect = None
+        self.max_messages = 5
+        self.messages = []
     
     def tick(self, framerate):
         """Ticks the pygame clock forward to lock the framerate."""
@@ -39,6 +42,13 @@ class GameDisplay:
         xpos = (SCREEN_WIDTH / 2) - width/2
         return (xpos, ypos)
     
+    def draw_text_at(self, font, color, string, position):
+        """Render the string to the screen with the top-left
+        at the given (x,y) position. Returns a rect of the affected
+        pixels."""
+        text = font.render(string, False, color)
+        return self.screen.blit(text, position)
+
     def draw_text_centered(self, font, color, string, y_position, x_offset=0):
         """Render the string to the screen at the given y position, with
         the given x offset. Returns a rect of the affected positions."""
@@ -46,6 +56,31 @@ class GameDisplay:
         x,y = self.get_center_pos(font, string, y_position)
         x += x_offset
         return self.screen.blit(text, (x,y))
+    
+    def add_message(self, message):
+        """Adds a message to the 'console readout', removing old
+        ones if necessary."""
+        self.messages.insert(0, message)
+        if len(self.messages) > self.max_messages:
+            self.messages.pop()
+    
+    def draw_messages(self):
+        """Draws 'console message' readout to screen."""
+        msgbox_height = self.message_font.get_linesize()*(self.max_messages+1)
+        msgbox_width = 400
+        msgbox_padding = 15
+        msgbox_rect = pygame.Rect(SCREEN_WIDTH-msgbox_width, SCREEN_HEIGHT-msgbox_height, msgbox_width,msgbox_height)
+        msgbox_surface = pygame.Surface((msgbox_width, msgbox_height))
+        msgbox_surface.set_alpha(128)
+        pygame.draw.rect(msgbox_surface, COLOR_BLACK, (0,0,msgbox_width,msgbox_height), border_radius=5)
+        self.screen.blit(msgbox_surface, msgbox_rect.topleft)
+
+        x,y = msgbox_rect.bottomleft
+        x += msgbox_padding
+        y -= self.message_font.get_linesize()
+        for msg in self.messages:
+            self.draw_text_at(self.message_font, COLOR_GREEN, msg, (x,y))
+            y -= self.message_font.get_linesize()
     
     def play_intro(self):
         """Plays the startup animation."""
@@ -88,6 +123,7 @@ class GameDisplay:
                 wrap = int(len(credit_string)/2)+5
                 self.draw_text_centered(self.menu_font, (shade, shade, shade), credit_string[0:wrap], 50)
                 self.draw_text_centered(self.menu_font, (shade, shade, shade), credit_string[wrap:], 50+self.menu_font.get_linesize())
+                self.draw_text_centered(self.menu_font, (shade, shade, shade), "Distributed Systems, Fall 2021", 700)
             elif tick in slash_screen:
                 if tick == slash_screen[0]:
                     shing_sound.play()
@@ -147,7 +183,7 @@ class GameDisplay:
                 pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
                 title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
                 self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
-                self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
+                # self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
                 self.draw_text_centered(self.title_font, COLOR_WHITE, "START", 260, x_offset=40)
                 self.draw_text_centered(self.title_font, COLOR_WHITE, "QUIT", 450, x_offset=-50)
 
@@ -180,11 +216,8 @@ class GameDisplay:
         pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
         title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
         self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
-        self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
         self.draw_text_centered(self.title_font, top_text, "START", 260, x_offset=40)
         self.draw_text_centered(self.title_font, bot_text, "QUIT", 450, x_offset=-50)
-
-        pygame.display.flip()
     
     def focus_entity(self, entity):
         """Center camera on entity by setting camera position to entity's position."""
@@ -203,7 +236,7 @@ class GameDisplay:
         engine = client.engine
         cam_x, cam_y = self.camera_pos
         # draw background
-        pygame.draw.rect(self.screen, COLOR_WHITE, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.draw.rect(self.screen, COLOR_BLACK, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
         arena_rect = pygame.Rect(self.world_to_screen_pos((0,0)), (ARENA_SIZE, ARENA_SIZE))
         pygame.draw.rect(self.screen, COLOR_GRAY, arena_rect)
 
@@ -223,9 +256,6 @@ class GameDisplay:
             # draw projectile
             elif entity.kind == EntityKind.PROJECTILE:
                 pygame.draw.circle(self.screen, COLOR_BLUE, (ent_x,ent_y), PROJECTILE_SIZE)
-
-        # flip display
-        pygame.display.flip()
 
 class GameEngine:
     """Manages game state, accounting for inputs scheduled for the past,
@@ -465,12 +495,17 @@ class GameClient:
                 return "quit"
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if hover_start:
-                    return "waiting"
+                    if self.socket is None or self.socket.fileno() < 0:
+                        return "connecting"
+                    else:
+                        return "waiting"
                 if hover_quit:
                     return "quit"
-
+        
         # draw title screen
         self.display.draw_titlescreen(hover_start=hover_start,hover_quit=hover_quit)
+        self.display.draw_messages()
+        pygame.display.flip()
 
     
     def get_player(self):
@@ -614,8 +649,13 @@ class GameClient:
     def connect_server(self):
         """Connects to a server listening on the given host and port, and
         sets the socket property of this client."""
-        self.socket = socket.create_connection((self.server_host, self.server_port))
-        return self.socket
+        try:
+            LOGGER.debug('attempting to connnect to %s:%d...', self.server_host, self.server_port)
+            self.socket = socket.create_connection((self.server_host, self.server_port))
+        except ConnectionError as e:
+            LOGGER.debug('Failed to connect to server: %s', e)
+            return False
+        return True
 
     def update_server(self):
         """Checks if packet has come in from the server, and add the 
@@ -656,10 +696,9 @@ class GameClient:
         self.engine.advance_tick()
     
     def join_game(self):
-        """Attempts to join a game on the host server."""
+        """Attempts to join a game on the host server. If our socket isn't
+        connected, return False without doing anything."""
         if self.socket is None or self.socket.fileno() < 0:
-            self.connect_server()
-        if self.socket is None:
             return False
         self.send_msg({"method": "JOIN_MATCH"})
 
