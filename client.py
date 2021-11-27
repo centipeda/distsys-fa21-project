@@ -5,7 +5,7 @@ import sys
 import pygame
 
 import game
-from globalvars import FRAMERATE, LOGGER, SERVER_HOST, SERVER_PORT, STATE_SAVE_RATE
+from globalvars import FRAMERATE, LOGGER, SERVER_HOST, SERVER_PORT, SKIP_INTRO, STATE_SAVE_RATE
 
 def main():
     host = SERVER_HOST
@@ -14,7 +14,8 @@ def main():
         host = sys.argv[1]
 
     game_client = game.GameClient(server_host=host,server_port=port,display=True)
-    game_client.play_intro()
+    if not SKIP_INTRO:
+        game_client.play_intro()
     game_state = "title"
 
     while True:
