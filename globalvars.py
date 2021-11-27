@@ -43,6 +43,8 @@ ARENA_SIZE  = 1000 # pixels
 MIN_PLAYERS = 2
 # Maximum players in a match.
 MAX_PLAYERS = 2
+# How many seconds the match should go on for.
+MATCH_LENGTH = 10 # seconds
 
 # How far from the edge of the arena players start at.
 PLAYER_START_OFFSET = 30

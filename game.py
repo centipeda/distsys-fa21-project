@@ -23,62 +23,174 @@ class GameDisplay:
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.camera_pos = (0,0)
+        self.title_font = pygame.font.Font('assets/Iceland-Regular.ttf', 96)
+        self.menu_font  = pygame.font.Font('assets/Iceland-Regular.ttf', 48)
+        self.top_button_rect = None
+        self.bot_button_rect = None
+    
+    def tick(self, framerate):
+        """Ticks the pygame clock forward to lock the framerate."""
+        self.clock.tick(framerate)
     
     def get_center_pos(self, font, text, ypos):
-        """Returns the top-lef tposition to render it at the center of the screen
-        with the given font, text, and vertical position."""
+        """Returns the top-left position to render text at the center of the screen
+        with the given font, string, and vertical position."""
         width, _height = font.size(text)
         xpos = (SCREEN_WIDTH / 2) - width/2
         return (xpos, ypos)
     
-    def init_titlescreen(self):
-        """Sets up title screen."""
-        self.title_font = pygame.font.Font(pygame.font.get_default_font(), 64)
-        self.menu_font  = pygame.font.Font(pygame.font.get_default_font(), 48)
-        starttext = self.menu_font.render("START", False, COLOR_BLACK)
-        self.start_rect = self.screen.blit(starttext, self.get_center_pos(self.menu_font, "START", 300))
-        quittext = self.menu_font.render("QUIT", False, COLOR_BLACK)
-        self.quit_rect = self.screen.blit(quittext, self.get_center_pos(self.menu_font, "QUIT", 500))
+    def draw_text_centered(self, font, color, string, y_position, x_offset=0):
+        """Render the string to the screen at the given y position, with
+        the given x offset. Returns a rect of the affected positions."""
+        text = font.render(string, False, color)
+        x,y = self.get_center_pos(font, string, y_position)
+        x += x_offset
+        return self.screen.blit(text, (x,y))
+    
+    def play_intro(self):
+        """Plays the startup animation."""
+        shing_sound = pygame.mixer.Sound('assets/shing.wav')
+        thump_sound = pygame.mixer.Sound('assets/thump.wav')
+        credit_string = "Made by Rafael Mendizabal and Joshua Cepeda"
+        tick = 0
+        angle = 80 # degrees
+        letter = 0
+        offset = SCREEN_HEIGHT/2*math.tan(math.pi / 180 * angle)
+        empty = 120
+        slash = 10
+        slide = 30
+        title = 50
+        end = empty+slash+slide+title+60
 
-    def input_titlescreen(self):
-        """Receives input from the user, checking if they've clicked a button
-        on the title screen."""
-        next_state = "title"
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                next_state = "quit"
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-                if self.quit_rect.collidepoint(mouse_pos):
-                    next_state = "quit"
-                if self.start_rect.collidepoint(mouse_pos):
-                    next_state = "waiting"
-        return next_state
+        t = 0
+        empty_screen = range(t, t+empty)
+        t += empty
+        slash_screen = range(t, t+slash)
+        t += slash
+        slide_screen = range(t, t+slide)
+        t += slide
+        title_write = range(t, t+title)
+
+        while True:
+            # tick forward intro
+            tick += 1
+            self.clock.tick(FRAMERATE)
+            # catch quit event
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+
+            if tick in empty_screen:
+                progress = (tick-empty_screen[0])/len(empty_screen)
+                shade = (1 - 2**(-10*progress))*255
+                self.screen.fill(COLOR_BLACK)
+                pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+                wrap = int(len(credit_string)/2)+5
+                self.draw_text_centered(self.menu_font, (shade, shade, shade), credit_string[0:wrap], 50)
+                self.draw_text_centered(self.menu_font, (shade, shade, shade), credit_string[wrap:], 50+self.menu_font.get_linesize())
+            elif tick in slash_screen:
+                if tick == slash_screen[0]:
+                    shing_sound.play()
+                progress = (tick-slash_screen[0])/len(slash_screen)
+                start_pos = (SCREEN_WIDTH/2+offset, 0)
+                end_pos = (SCREEN_WIDTH/2+offset-(offset*2*progress), (SCREEN_HEIGHT)*progress)
+
+                self.screen.fill(COLOR_BLACK)
+                pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+                pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
+            elif tick in slide_screen:
+                progress = (tick-slide_screen[0])/len(slide_screen)
+                eased_progress = 1 - 2**(-10*progress) # easing algorithm
+                start_pos = (SCREEN_WIDTH/2+offset, 0)
+                end_pos = (SCREEN_WIDTH/2-offset, SCREEN_HEIGHT)
+                start_angle = (90 - angle)/180*math.pi
+                end_angle = start_angle + math.pi
+                slide_offset = (eased_progress*50)
+                xslide = slide_offset*math.cos((90-angle)/180*math.pi)
+                yslide = slide_offset*math.sin((90-angle)/180*math.pi)
+                color_progress = int(255*progress)
+                reddish = (255, 255-color_progress, 255-color_progress)
+                blueish = (255-color_progress, 255-color_progress, 255)
+
+                self.screen.fill(COLOR_BLACK)
+                # pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        pygame.draw.arc(self.screen, reddish, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
+                        pygame.draw.arc(self.screen, blueish, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
+                pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
+            elif tick in title_write:
+                progress = (tick-title_write[0])/len(title_write)
+                if int(len("Lag Warriors")*progress)+1 > letter:
+                    thump_sound.play()
+                letter = int(len("Lag Warriors")*progress)+1
+                start_pos = (SCREEN_WIDTH/2+offset, 0)
+                end_pos = (SCREEN_WIDTH/2-offset, SCREEN_HEIGHT)
+
+                self.screen.fill(COLOR_BLACK)
+                # pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        pygame.draw.arc(self.screen, COLOR_RED, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
+                        pygame.draw.arc(self.screen, COLOR_BLUE, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
+                pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
+                self.draw_text_centered(self.title_font, COLOR_WHITE, "Lag Warriors"[:letter], 50)
+            elif tick == end:
+                return
+            else:
+                self.screen.fill(COLOR_BLACK)
+                # pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        pygame.draw.arc(self.screen, COLOR_RED, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
+                        pygame.draw.arc(self.screen, COLOR_BLUE, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
+                pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
+                title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
+                self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
+                self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
+                self.draw_text_centered(self.title_font, COLOR_WHITE, "START", 260, x_offset=40)
+                self.draw_text_centered(self.title_font, COLOR_WHITE, "QUIT", 450, x_offset=-50)
+
+            pygame.display.flip()
+
+    def draw_titlescreen(self, hover_start=False, hover_quit=False):
+        """Draws the current state of the title screen to the screen."""
+        angle = 80 # degrees
+        xslide = 50*math.cos((90-angle)/180*math.pi)
+        yslide = 50*math.sin((90-angle)/180*math.pi)
+        offset = SCREEN_HEIGHT/2*math.tan(math.pi / 180 * angle)
+        start_angle = (90 - angle)/180*math.pi
+        end_angle = start_angle + math.pi
+        start_pos = (SCREEN_WIDTH/2+offset, 0)
+        end_pos = (SCREEN_WIDTH/2-offset, SCREEN_HEIGHT)
+
+        top_fill = COLOR_WHITE if hover_start else COLOR_RED
+        bot_fill = COLOR_WHITE if hover_quit else COLOR_BLUE
+        top_text = COLOR_WHITE if not hover_start else COLOR_RED
+        bot_text = COLOR_WHITE if not hover_quit else COLOR_BLUE
+
+        self.screen.fill(COLOR_BLACK)
+        # pygame.draw.circle(self.screen, COLOR_WHITE, (SCREEN_WIDTH/2,SCREEN_HEIGHT/2), 200)
+        self.top_button_rect = pygame.draw.arc(self.screen, top_fill, (200+xslide, 200-yslide, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
+        self.bot_button_rect = pygame.draw.arc(self.screen, bot_fill, (200-xslide, 200+yslide, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                pygame.draw.arc(self.screen, top_fill, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
+                pygame.draw.arc(self.screen, bot_fill, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
+        pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
+        title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
+        self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
+        self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
+        self.draw_text_centered(self.title_font, top_text, "START", 260, x_offset=40)
+        self.draw_text_centered(self.title_font, bot_text, "QUIT", 450, x_offset=-50)
+
+        pygame.display.flip()
     
     def focus_entity(self, entity):
         """Center camera on entity by setting camera position to entity's position."""
         x,y = entity.position
         self.camera_pos = (x-SCREEN_WIDTH/2, y-SCREEN_HEIGHT/2)
         self.camera_pos = (x,y)
-
-    def draw_titlescreen(self):
-        """Draws the current state of the title screen to the screen."""
-        self.screen.fill(COLOR_WHITE)
-
-        title = self.title_font.render("Lag Warriors", False, COLOR_BLACK)
-        self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 100))
-
-        starttext = self.menu_font.render("START", False, COLOR_BLACK)
-        r = self.screen.blit(starttext, self.get_center_pos(self.menu_font, "START", 300))
-        r.update(r.left-5, r.top-5, r.width+10, r.height+10)
-        pygame.draw.rect(self.screen, COLOR_BLACK, r, width=1)
-
-        quittext = self.menu_font.render("QUIT", False, COLOR_BLACK)
-        r = self.screen.blit(quittext, self.get_center_pos(self.menu_font, "QUIT", 500))
-        r.update(r.left-5, r.top-5, r.width+10, r.height+10)
-        pygame.draw.rect(self.screen, COLOR_BLACK, r, width=1)
-
-        pygame.display.flip()
 
     def world_to_screen_pos(self, position):
         x,y = position
@@ -310,7 +422,7 @@ class GameEngine:
     
 class GameClient:
     """Faciliates communication between the user and the server's game states."""
-    def __init__(self, server_host=SERVER_HOST, server_port=SERVER_PORT):
+    def __init__(self, server_host=SERVER_HOST, server_port=SERVER_PORT, display=True):
         self.socket = None
         self.server_host = server_host
         self.server_port = server_port
@@ -328,7 +440,38 @@ class GameClient:
         self.outgoing_messages = []
         # Whether we're in a waiting room or a real match.
         self.live_match = False
-        self.connect_server()
+        # self.connect_server()
+        if display:
+            self.display = GameDisplay()
+    
+    def play_intro(self):
+        """Plays the opening animation."""
+        self.display.play_intro()
+
+    def play_titlescreen(self):
+        """Manages drawing and input for the title screen/initial menu. Returns
+        a string describing the next state of the game client: "start" to start
+        waiting for a match, and "quit" to exit the client."""
+
+        # get input
+        mouse_pos = pygame.mouse.get_pos()
+        if self.display.top_button_rect and self.display.bot_button_rect:
+            hover_start = self.display.top_button_rect.collidepoint(mouse_pos)
+            hover_quit = self.display.bot_button_rect.collidepoint(mouse_pos)
+        else:
+            hover_quit = hover_start = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if hover_start:
+                    return "waiting"
+                if hover_quit:
+                    return "quit"
+
+        # draw title screen
+        self.display.draw_titlescreen(hover_start=hover_start,hover_quit=hover_quit)
+
     
     def get_player(self):
         """Gets the player in the game engine matching our player ID."""
@@ -440,6 +583,18 @@ class GameClient:
         self.incoming_messages = remaining_messages
         return m
     
+    def recv_end(self):
+        finished = False
+        remaining_messages = []
+        for message in self.incoming_messages:
+            if message['method'] == "END_MATCH":
+                finished = True
+            else:
+                # only get the user input messages from the queue
+                remaining_messages.append(message)
+        self.incoming_messages = remaining_messages
+        return finished
+    
     def send_input(self, tick):
         """Sends the current input state to the server, scheduled for the given tick."""
         msg = {
@@ -492,8 +647,8 @@ class GameClient:
             try:
                 helpers.send_packet(self.socket, msg)
             except Exception as e:
-                    LOGGER.debug('err sending message to server: %s', e)
-                    return self.communication_error_handler()
+                LOGGER.debug('err sending message to server: %s', e)
+                return self.communication_error_handler()
         return True
 
     def advance_game(self):
@@ -502,7 +657,7 @@ class GameClient:
     
     def join_game(self):
         """Attempts to join a game on the host server."""
-        if self.socket is None:
+        if self.socket is None or self.socket.fileno() < 0:
             self.connect_server()
         if self.socket is None:
             return False
@@ -554,7 +709,7 @@ class GameServer:
                 s = r_sockets.pop()
                 if(s == self.socket):  # If the socket is the server, then accept the connection and add to dict
                     (conn, addr) = s.accept()
-                    LOGGER.debug("got new client %s", conn)
+                    LOGGER.debug("got new client %s", addr)
                     socket_dict[conn] = 1
                 else:  # If the socket is a client
                     try:
@@ -564,7 +719,7 @@ class GameServer:
                             continue
 
                         request_data = helpers.unmarshal_message(packet)
-                        LOGGER.debug('data read from %s: %s', s, request_data)
+                        # LOGGER.debug('data read from %s: %s', s, request_data)
 
                         try: # Handle request, expect JOIN_MATCH
                             if request_data['method'] == 'JOIN_MATCH':
@@ -619,8 +774,9 @@ class GameServer:
 
         self.in_game = True
 
-    def end_match(self, victor_id):
+    def end_match(self):
         """End a game, telling all users who the victor is."""
+        victor_id = 0 # TODO: replace with victor determining procedure
         for user in self.user_sockets:
             try:
                 helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
@@ -658,6 +814,8 @@ class GameServer:
                 "method": "USER_INPUT",
                 "inputs": list(self.user_inputs)
             })
+            # TODO: only send inputs to users that didn't do them
+            ids = [m['user_id'] for m in self.user_inputs]
             LOGGER.debug('input packet: %s', packet)
             for user in self.user_sockets:
                 try:
@@ -670,7 +828,10 @@ class GameServer:
 
     def match_finished(self):
         """Determines whether the current match is over or not."""
-        return False
+        # check whether we're over the match length time in ticks
+        if self.engine.current_tick > MATCH_LENGTH*FRAMERATE:
+            LOGGER.debug('reached match end, ending match')
+            return True
 
     def advance_game(self):
         """Advance the game engine by one tick."""
