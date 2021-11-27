@@ -30,7 +30,9 @@ def main():
 
         # when enough users connect, start a match
         LOGGER.debug('starting match...')
-        game_server.start_match()
+        if not game_server.start_match():
+            LOGGER.debug('failed to start match.')
+            continue
     
         # while the match is not over:
         last_tick = time.time()

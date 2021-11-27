@@ -5,6 +5,7 @@ A distributed, real-time competitive multiplayer game.
 ## TODO
 - Add player KO
 - Add win/loss conditions
+- send MATCH_END from server with negative user id to indicate failure
 
 ## challenges
 

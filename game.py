@@ -332,8 +332,6 @@ class GameEngine:
                         if p is not None:
                             to_add.append(p)
                 else:
-                    if entity.out_of_bounds():
-                        LOGGER.debug("%s out of bounds!", entity)
                     entity.update_velocity()
 
             # process projectile collisions
@@ -799,17 +797,20 @@ class GameServer:
             "state": start_state,
         })
         # notify users of match start
-        for user in self.user_sockets:
+        for user in dict(self.user_sockets): # copy dict as we iterate through it
             try:
                 helpers.send_packet(user, message)
             except Exception as e:
                 LOGGER.debug('err sending START_MATCH: %s', e)
-                del(self.user_sockets[user])
+                if user in self.user_sockets:
+                    del(self.user_sockets[user])
 
+        """
         # wait for users to reply to start on server-side
-        for user in self.user_sockets:
+        for user in dict(self.user_sockets):
             helpers.recv_packet(user)
             # probably add check to confirm that users are ready
+        """
 
         self.in_game = True
 
