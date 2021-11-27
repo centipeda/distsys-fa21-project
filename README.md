@@ -2,6 +2,8 @@
 
 A distributed, real-time competitive multiplayer game.
 
+![Game Intro](assets/lag_warriors.gif)
+
 ## TODO
 - Add player KO
 - Add win/loss conditions

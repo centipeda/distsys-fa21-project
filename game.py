@@ -95,7 +95,7 @@ class GameDisplay:
         slash = 10
         slide = 30
         title = 50
-        end = empty+slash+slide+title+60
+        end = empty+slash+slide+title
 
         t = 0
         empty_screen = range(t, t+empty)
