@@ -8,6 +8,7 @@ A distributed, real-time competitive multiplayer game.
 - Add player KO
 - Add win/loss conditions
 - send MATCH_END from server with negative user id to indicate failure
+- set up broadcast queue for server
 
 ## challenges
 

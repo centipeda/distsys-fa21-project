@@ -472,6 +472,10 @@ class GameClient:
         if display:
             self.display = GameDisplay()
     
+    def connected(self):
+        """Returns false if our socket is None or has a negative file descriptor."""
+        return self.socket is None or self.socket.fileno() < 0
+    
     def play_intro(self):
         """Plays the opening animation."""
         self.display.play_intro()
@@ -479,9 +483,11 @@ class GameClient:
     def play_titlescreen(self):
         """Manages drawing and input for the title screen/initial menu. Returns
         a string describing the next state of the game client: "start" to start
-        waiting for a match, and "quit" to exit the client."""
+        waiting for a match, "quit" to exit the client, and "title" to continue
+        rendering the title screen."""
 
         # get input
+        state = "title"
         mouse_pos = pygame.mouse.get_pos()
         if self.display.top_button_rect and self.display.bot_button_rect:
             hover_start = self.display.top_button_rect.collidepoint(mouse_pos)
@@ -490,21 +496,19 @@ class GameClient:
             hover_quit = hover_start = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "quit"
+                state = "quit"
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if hover_start:
-                    if self.socket is None or self.socket.fileno() < 0:
-                        return "connecting"
-                    else:
-                        return "waiting"
+                    state = "connecting"
                 if hover_quit:
-                    return "quit"
+                    state = "quit"
         
         # draw title screen
         self.display.draw_titlescreen(hover_start=hover_start,hover_quit=hover_quit)
         self.display.draw_messages()
         pygame.display.flip()
 
+        return state
     
     def get_player(self):
         """Gets the player in the game engine matching our player ID."""
@@ -621,11 +625,13 @@ class GameClient:
         remaining_messages = []
         for message in self.incoming_messages:
             if message['method'] == "END_MATCH":
+                self.display.add_message(f"Game over. Victor is {message['victor_id']}")
                 finished = True
             else:
                 # only get the user input messages from the queue
                 remaining_messages.append(message)
         self.incoming_messages = remaining_messages
+
         return finished
     
     def send_input(self, tick):
@@ -717,8 +723,6 @@ class GameClient:
 class GameServer:
     """Manages users joining/leaving matches, determines when matches begin and end,
     and relays inputs to and from players in a match."""
-    socket = None
-    user_sockets = {}
 
     def __init__(self, port=SERVER_PORT):
         self.engine = GameEngine()
@@ -726,7 +730,9 @@ class GameServer:
         self.socket.bind(("0.0.0.0", port))
         self.matchId = str(uuid.uuid4())
         self.user_inputs = []
+        self.ready_users = []
         self.in_game = False
+        self.user_sockets = {}
 
     def listen(self):
         """Listens for users on the specified host and port."""
@@ -734,52 +740,87 @@ class GameServer:
         addr,port = self.socket.getsockname()
         print(f"Listening for users on {addr}:{port}...")
     
+    def disconnect_user(self, user_id=0, user_socket=None):
+        """If the user's socket is still open, close their connection and remove their
+        socket from our dict of connections."""
+        if user_id != 0:
+            if user_id in self.user_sockets:
+                self.user_sockets[user_id].close()
+                self.user_sockets.pop(user_id)
+        elif user_socket is not None:
+            for uid,sock in self.user_sockets:
+                if sock == user_socket:
+                    self.user_sockets[uid].close()
+                    self.user_sockets.pop(uid)
+                
+    def get_uid_by_socket(self, user_socket):
+        """Returns the user id corresponding to the socket, if we have one. Else,
+        return None."""
+        for uid,sock in self.user_sockets.items():
+            if sock == user_socket:
+                return uid
+        return None
+    
     def wait_for_match(self):
-        #stores the sockets of clients + server
-        socket_dict = {}
-        socket_dict[self.socket] = 1
+        """Waits for enough users to connect and send JOIN_MATCH to begin the match. Returns
+        True if we have enough players to start the match, False if something went wrong."""
+        self.ready_users = []
 
-        while len(self.user_sockets) < MIN_PLAYERS:
+        while len(self.ready_users) < MIN_PLAYERS:
+            LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
+            # server socket + user sockets
+            all_sockets = [self.socket, *self.user_sockets.values()]
             # Check for readable sockets
-            r_sockets, w_sockets, e_sockets = select.select(socket_dict, [], [], 0.1)
+            r_sockets, _w, _e = select.select(all_sockets, [], [], 1)
             while r_sockets:
                 s = r_sockets.pop()
-                if(s == self.socket):  # If the socket is the server, then accept the connection and add to dict
+                if s == self.socket:
+                    # If the socket is the server, then accept the connection
                     (conn, addr) = s.accept()
+                    # and give them a user id
+                    user_id = str(uuid.uuid4())
+                    self.user_sockets[user_id] = conn
                     LOGGER.debug("got new client %s", addr)
-                    socket_dict[conn] = 1
                 else:  # If the socket is a client
+                    # get their user ID
+                    user_id = self.get_uid_by_socket(s)
+
                     try:
                         packet = helpers.recv_packet(s)
                         if packet is None:
-                            del(socket_dict[s])
+                            self.disconnect_user(user_id=user_id)
+                            continue
+                        request_data = helpers.unmarshal_message(packet)
+                        if request_data['method'] != "JOIN_MATCH":
                             continue
 
-                        request_data = helpers.unmarshal_message(packet)
-                        # LOGGER.debug('data read from %s: %s', s, request_data)
-
                         try: # Handle request, expect JOIN_MATCH
-                            if request_data['method'] == 'JOIN_MATCH':
-                                LOGGER.debug("JOINMATCH %s",s)
-                                userId = str(uuid.uuid4()) # Generate unique ID for user
-                                self.user_sockets[conn] = self.engine.add_user(userId) # Add user to engine
-                                helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": userId, "match_id": self.matchId}))
-                            else: # Trash was sent, ignore then
-                                pass
+                            helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": user_id, "match_id": self.matchId}))
+                            self.ready_users.append(user_id)
+                            self.engine.add_user(user_id) # Add user to engine
                         except Exception as e:
                             LOGGER.debug('err responding to join_match: %s', e)
                             
                     except Exception as e: # If something with request goes wrong, remove from socket_dicts
                         LOGGER.debug("err %s - removing %s from clients", e, s)
-                        try:
-                            s.close()
-                            del(socket_dict[s])
-                        except:
-                            continue
+                        self.disconnect_user(user_id=user_id)
+        
+        return True
 
     def start_match(self):
         """Begin a game, initializing the local game state and telling all
         users when the match will begin."""
+        # check if our player sockets are still valid
+        invalid = False
+        for user_id in self.ready_users:
+            if self.user_sockets[user_id].fileno() < 0:
+                self.user_sockets.pop(user_id)
+                invalid = True
+        if invalid:
+            return False
+
+        if len(self.ready_users) < MIN_PLAYERS:
+            return False
 
         # set the starting positions, reset tick counter
         self.engine.place_players()
@@ -787,7 +828,7 @@ class GameServer:
         self.engine.current_tick = 0
         self.engine.register_state()
 
-        LOGGER.debug("starting match: users %s", self.user_sockets)
+        # LOGGER.debug("starting match: users %s", self.user_sockets)
         # save the current state to send to users
         start_state = self.engine.serialize_current_state()
 
@@ -797,13 +838,13 @@ class GameServer:
             "state": start_state,
         })
         # notify users of match start
-        for user in dict(self.user_sockets): # copy dict as we iterate through it
+        for user_id in dict(self.user_sockets): # copy dict before we iterate through it
             try:
-                helpers.send_packet(user, message)
+                helpers.send_packet(self.user_sockets[user_id], message)
             except Exception as e:
                 LOGGER.debug('err sending START_MATCH: %s', e)
-                if user in self.user_sockets:
-                    del(self.user_sockets[user])
+                if user_id in self.user_sockets:
+                    self.user_sockets.pop(user_id)
 
         """
         # wait for users to reply to start on server-side
@@ -811,22 +852,29 @@ class GameServer:
             helpers.recv_packet(user)
             # probably add check to confirm that users are ready
         """
-
         self.in_game = True
+        return True
 
     def end_match(self):
         """End a game, telling all users who the victor is."""
         victor_id = 0 # TODO: replace with victor determining procedure
-        for user in self.user_sockets:
-            try:
-                helpers.send_packet(user, helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id}))
-            except Exception as e:
-                LOGGER.debug('err with communicating end_match() : %s', e)
-                del(self.user_sockets[user])
+        packet = helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id})
+        while self.ready_users:
+            sockets = [self.user_sockets[uid] for uid in self.ready_users]
+            _r, writable, _x = select.select([], sockets, [])
+            for sock in writable:
+                uid = self.get_uid_by_socket(sock)
+                try:
+                    helpers.send_packet(sock, packet)
+                except Exception as e:
+                    LOGGER.debug('err with communicating end_match() : %s', e)
+                    self.disconnect_user(user_id=uid)
+                self.ready_users.remove(uid)
+        self.in_game = False
 
     def check_inputs(self):
         """Checks each player in the match for input."""
-        [readable, w, x] = select.select(self.user_sockets, [], [], 0)
+        [readable, w, x] = select.select(self.user_sockets.values(), [], [], 0)
         while readable:
             user = readable.pop()
             try:
@@ -835,6 +883,8 @@ class GameServer:
                     del(self.user_sockets[user])
                     continue
                 message = helpers.unmarshal_message(packet)
+                if message['method'] != "USER_INPUT":
+                    continue
                 self.engine.register_input(message['user_id'], message['input_state'], message['tick'])
                 self.user_inputs.append({
                     "user_id": message['user_id'],
@@ -856,13 +906,13 @@ class GameServer:
             })
             # TODO: only send inputs to users that didn't do them
             ids = [m['user_id'] for m in self.user_inputs]
-            LOGGER.debug('input packet: %s', packet)
-            for user in self.user_sockets:
+            # LOGGER.debug('input packet: %s', packet)
+            for user_id in self.user_sockets:
                 try:
-                    helpers.send_packet(user, packet)
+                    helpers.send_packet(self.user_sockets[user_id], packet)
                 except OSError as e:
                     LOGGER.debug('err relaying input: %s', e)
-                    self.remove_user(user)
+                    self.remove_user(user_id=user_id)
 
             self.user_inputs = []
 

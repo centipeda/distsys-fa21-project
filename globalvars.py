@@ -4,7 +4,7 @@
 DEBUG_ENABLED = True
 
 # set to true to skip the startup animation on the client
-SKIP_INTRO = False
+SKIP_INTRO = True
 
 import logging
 # set up debug logging

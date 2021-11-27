@@ -26,9 +26,10 @@ def main():
     while True:
         # wait for enough users to start a match
         LOGGER.debug('waiting for match...')
-        game_server.wait_for_match()
+        if not game_server.wait_for_match():
+            continue
 
-        # when enough users connect, start a match
+        # when enough users connect, try to start a match
         LOGGER.debug('starting match...')
         if not game_server.start_match():
             LOGGER.debug('failed to start match.')
