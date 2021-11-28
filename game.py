@@ -231,6 +231,11 @@ class GameDisplay:
         p = (x-cam_x+SCREEN_WIDTH/2, y-cam_y+SCREEN_HEIGHT/2)
         return p
     
+    def draw_countdown(self, countdown_time):
+        """Draws an indicator counting down to the match beginning."""
+        self.draw_text_centered(self.menu_font, COLOR_GREEN, "STARTING IN", 350)
+        self.draw_text_centered(self.menu_font, COLOR_GREEN, str(countdown_time), 350+self.menu_font.get_linesize())
+    
     def draw_frame(self, client):
         """Draws the current state of the game to the screen."""
         engine = client.engine
@@ -256,6 +261,12 @@ class GameDisplay:
             # draw projectile
             elif entity.kind == EntityKind.PROJECTILE:
                 pygame.draw.circle(self.screen, COLOR_BLUE, (ent_x,ent_y), PROJECTILE_SIZE)
+
+        # draw the HUD
+        if client.live_match:
+            time_remaining = (MATCH_LENGTH - int(client.engine.current_tick/FRAMERATE))
+            self.draw_text_centered(self.menu_font, COLOR_GREEN, str(time_remaining), 25)
+
 
 class GameEngine:
     """Manages game state, accounting for inputs scheduled for the past,
@@ -611,9 +622,6 @@ class GameClient:
                 except Exception as e:
                     LOGGER.debug('err sending ACK: %s', e)
                     return self.communication_error_handler()
-                for n in range(int(message['start_in']), 0, -1):
-                    LOGGER.debug('starting in %d...', n)
-                    time.delay(1000)
                 m = message
             else:
                 remaining_messages.append(message)
@@ -765,6 +773,7 @@ class GameServer:
         """Waits for enough users to connect and send JOIN_MATCH to begin the match. Returns
         True if we have enough players to start the match, False if something went wrong."""
         self.ready_users = []
+        self.engine.reset_game()
 
         while len(self.ready_users) < MIN_PLAYERS:
             LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
@@ -834,7 +843,7 @@ class GameServer:
 
         message = helpers.marshal_message({
             "method": "START_MATCH",
-            "start_in": 3,
+            "start_in": MATCH_START_DELAY,
             "state": start_state,
         })
         # notify users of match start
@@ -846,12 +855,6 @@ class GameServer:
                 if user_id in self.user_sockets:
                     self.user_sockets.pop(user_id)
 
-        """
-        # wait for users to reply to start on server-side
-        for user in dict(self.user_sockets):
-            helpers.recv_packet(user)
-            # probably add check to confirm that users are ready
-        """
         self.in_game = True
         return True
 
@@ -919,7 +922,7 @@ class GameServer:
     def match_finished(self):
         """Determines whether the current match is over or not."""
         # check whether we're over the match length time in ticks
-        if self.engine.current_tick > MATCH_LENGTH*FRAMERATE:
+        if self.engine.current_tick > (MATCH_LENGTH+MATCH_START_DELAY)*FRAMERATE:
             LOGGER.debug('reached match end, ending match')
             return True
 

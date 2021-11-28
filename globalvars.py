@@ -49,6 +49,8 @@ MIN_PLAYERS = 2
 MAX_PLAYERS = 2
 # How many seconds the match should go on for.
 MATCH_LENGTH = 10 # seconds
+# How long of a countdown players should get before starting the match.
+MATCH_START_DELAY = 3 # seconds
 
 # How far from the edge of the arena players start at.
 PLAYER_START_OFFSET = 30
