@@ -25,6 +25,7 @@ class GameDisplay:
         self.camera_pos = (0,0)
         self.title_font = pygame.font.Font('assets/Iceland-Regular.ttf', 96)
         self.menu_font  = pygame.font.Font('assets/Iceland-Regular.ttf', 48)
+        self.subtitle_font  = pygame.font.Font('assets/Iceland-Regular.ttf', 26)
         self.message_font = pygame.font.Font('assets/CourierPrime-Regular.ttf', 18)
         self.top_button_rect = None
         self.bot_button_rect = None
@@ -157,9 +158,11 @@ class GameDisplay:
                 pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
             elif tick in title_write:
                 progress = (tick-title_write[0])/len(title_write)
-                if int(len("Lag Warriors")*progress)+1 > letter:
+                eased_progress = 1 - (1-progress)**3
+                credit_text_offset = 100
+                if int(len(GAME_TITLE)*progress)+1 > letter:
                     thump_sound.play()
-                letter = int(len("Lag Warriors")*progress)+1
+                letter = int(len(GAME_TITLE)*progress)+1
                 start_pos = (SCREEN_WIDTH/2+offset, 0)
                 end_pos = (SCREEN_WIDTH/2-offset, SCREEN_HEIGHT)
 
@@ -170,7 +173,9 @@ class GameDisplay:
                         pygame.draw.arc(self.screen, COLOR_RED, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
                         pygame.draw.arc(self.screen, COLOR_BLUE, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
                 pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
-                self.draw_text_centered(self.title_font, COLOR_WHITE, "Lag Warriors"[:letter], 50)
+                self.draw_text_centered(self.title_font, COLOR_WHITE, GAME_TITLE[:letter], 50)
+                self.draw_text_centered(self.subtitle_font, COLOR_WHITE, credit_string, 700+credit_text_offset*(1-eased_progress))
+                self.draw_text_centered(self.subtitle_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700+self.subtitle_font.get_linesize()+credit_text_offset*(1-eased_progress))
             elif tick == end:
                 return
             else:
@@ -181,8 +186,8 @@ class GameDisplay:
                         pygame.draw.arc(self.screen, COLOR_RED, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
                         pygame.draw.arc(self.screen, COLOR_BLUE, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
                 pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
-                title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
-                self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
+                title = self.title_font.render(GAME_TITLE)
+                self.screen.blit(title, self.get_center_pos(self.title_font, GAME_TITLE, 50))
                 # self.draw_text_centered(self.menu_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700)
                 self.draw_text_centered(self.title_font, COLOR_WHITE, "START", 260, x_offset=40)
                 self.draw_text_centered(self.title_font, COLOR_WHITE, "QUIT", 450, x_offset=-50)
@@ -191,6 +196,8 @@ class GameDisplay:
 
     def draw_titlescreen(self, hover_start=False, hover_quit=False):
         """Draws the current state of the title screen to the screen."""
+        credit_string = "Made by Rafael Mendizabal and Joshua Cepeda"
+        credit_text_offset = 100
         angle = 80 # degrees
         xslide = 50*math.cos((90-angle)/180*math.pi)
         yslide = 50*math.sin((90-angle)/180*math.pi)
@@ -214,10 +221,12 @@ class GameDisplay:
                 pygame.draw.arc(self.screen, top_fill, (200+xslide+i, 200-yslide+j, 400, 400), start_angle=start_angle, stop_angle=end_angle,width=200)
                 pygame.draw.arc(self.screen, bot_fill, (200-xslide+i, 200+yslide+j, 400, 400), start_angle=end_angle, stop_angle=start_angle,width=200)
         pygame.draw.line(self.screen, COLOR_WHITE, start_pos, end_pos, width=5)
-        title = self.title_font.render("Lag Warriors", False, COLOR_WHITE)
-        self.screen.blit(title, self.get_center_pos(self.title_font, "Lag Warriors", 50))
+        title = self.title_font.render(GAME_TITLE, False, COLOR_WHITE)
+        self.screen.blit(title, self.get_center_pos(self.title_font, GAME_TITLE, 50))
         self.draw_text_centered(self.title_font, top_text, "START", 260, x_offset=40)
         self.draw_text_centered(self.title_font, bot_text, "QUIT", 450, x_offset=-50)
+        self.draw_text_centered(self.subtitle_font, COLOR_WHITE, credit_string, 700)
+        self.draw_text_centered(self.subtitle_font, COLOR_WHITE, "Distributed Systems, Fall 2021", 700+self.subtitle_font.get_linesize())
     
     def focus_entity(self, entity):
         """Center camera on entity by setting camera position to entity's position."""

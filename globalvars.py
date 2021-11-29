@@ -29,7 +29,7 @@ COLOR_BLUE   = (0, 0, 255)
 COLOR_GREEN = (0, 255, 0)
 COLOR_GRAY  = (153, 153, 153)
 
-GAME_TITLE = "Lag Warriors"
+GAME_TITLE = "Lag Fighters"
 
 SERVER_HOST = "localhost"
 SERVER_PORT = 5555
