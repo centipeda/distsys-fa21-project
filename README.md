@@ -5,10 +5,10 @@ A distributed, real-time competitive multiplayer game.
 ![Game Intro](assets/lag_warriors.gif)
 
 ## TODO
-- Add player KO
-- Add win/loss conditions
+- add pickup mechanic
+- add simulated lag
+- add performance measurements
 - send MATCH_END from server with negative user id to indicate failure
-- set up broadcast queue for server
 
 ## challenges
 
