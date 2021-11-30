@@ -1,7 +1,8 @@
 """Class definitions for running, hosting, and drawing the game."""
 
-import pygame, pygame.font
-from pygame import time
+import random
+import pygame, pygame.font, pygame.time
+import time
 import sys
 import math
 import socket
@@ -10,7 +11,7 @@ import select
 
 from globalvars import *
 import helpers
-from game_objects import Player,EntityKind,spawn_entity
+from game_objects import Pickup, Player,EntityKind,deserialize_entity
 
 
 class GameDisplay:
@@ -270,6 +271,8 @@ class GameDisplay:
             # draw projectile
             elif entity.kind == EntityKind.PROJECTILE:
                 pygame.draw.circle(self.screen, COLOR_BLUE, (ent_x,ent_y), PROJECTILE_SIZE)
+            elif entity.kind == EntityKind.PICKUP:
+                pygame.draw.circle(self.screen, COLOR_YELLOW, (ent_x,ent_y), PICKUP_SIZE)
 
         # draw the HUD
         if client.live_match:
@@ -282,17 +285,26 @@ class GameEngine:
     present, and future."""
 
     def __init__(self):
+        self.input_delay = GLOBAL_INPUT_DELAY
+        self.reset_game()
+
+    def reset_game(self):
+        """Sets up or resets variables needed to start a game."""
         self.current_tick = 0
         self.entities = {}
         self.inputs = {}
         self.frames = {}
-        self.input_delay = GLOBAL_INPUT_DELAY
+        self.pickup_positions = []
+        self.pickups_generated = 0
+        self.live_pickups = 0
 
     def serialize_current_state(self):
         """Returns a dict representing the current state of the game."""
         return {
             "entities": [e.serialize() for e in self.entities.values()],
-            "tick": self.current_tick
+            "tick": self.current_tick,
+            "generated": self.pickups_generated,
+            "live": self.live_pickups
         }
 
     def register_state(self, game_state=None):
@@ -316,17 +328,12 @@ class GameEngine:
         if game_state is not None:
             self.frames[game_state['tick']] = game_state
             self.current_tick = game_state['tick']
+            self.pickups_generated = game_state['generated']
+            self.live_pickups = game_state['live']
             self.entities = {}
             for e in game_state['entities']:
-                entity = spawn_entity(e)
+                entity = deserialize_entity(e)
                 self.entities[id(entity)] = entity
-
-    def reset_game(self):
-        """Sets up or resets variables needed to start a game."""
-        self.current_tick = 0
-        self.entities = {}
-        self.inputs = {}
-        self.frames = {}
 
     def advance_tick(self):
         """Advances the game by one tick, updating the positions and states
@@ -368,9 +375,22 @@ class GameEngine:
                 # delete if the projectile has gone past the screen
                 if entity.bound_position() != entity.position:
                     to_delete.add(entity)
+            
+            if entity.kind == EntityKind.PICKUP:
+                if id(entity) in collisions:
+                    _colls = collisions[id(entity)]
+                    for collided in _colls:
+                        if collided.kind == EntityKind.PLAYER:
+                            collided.collect_pickup(entity)
+                            self.live_pickups -= 1
+                            to_delete.add(entity)
 
             # update positions based on collisions
             entity.update_position()
+
+        # spawn pickup if we're supposed to
+        if self.live_pickups < MAX_PICKUPS and self.current_tick % PICKUP_SPAWN_RATE == 0:
+            self.spawn_pickup()
 
         # cull entities
         for e in to_delete:
@@ -439,7 +459,6 @@ class GameEngine:
         while begin_tick not in self.frames:
             begin_tick -= 1
         self.load_state(self.frames[begin_tick])
-        
 
     def advance_to(self, tick):
         """Advances the game state to the specified tick."""
@@ -467,6 +486,31 @@ class GameEngine:
             players[2].position = (ARENA_SIZE-offset, offset)
         if len(players) > 3:
             players[3].position = (offset, ARENA_SIZE-offset)
+
+    def generate_pickup_locations(self, seed):
+        """Deterministically generates a list of pickup positions from the given seed."""
+        LOGGER.debug('generating positions from %s', seed)
+        self.pickup_positions = []
+        random.seed(seed)
+        for p in range(PICKUP_POSITIONS_GENERATED):
+            x = random.randrange(PICKUP_SIZE, ARENA_SIZE-PICKUP_SIZE)
+            y = random.randrange(PICKUP_SIZE, ARENA_SIZE-PICKUP_SIZE)
+            self.pickup_positions.append((x,y))
+
+    def spawn_pickup(self):
+        """Creates a new pickup at the next position in the pickup position list."""
+        position = self.pickup_positions[self.pickups_generated % len(self.pickup_positions)]
+        LOGGER.debug('spawning pickup: %s', str(position))
+        self.add_entity(Pickup(position))
+        self.pickups_generated += 1
+        self.live_pickups += 1
+    
+    def get_scores(self):
+        """Gets the scores of every player currently in the game. Returns a dict with
+        keys as user IDs, and values as integers representing scores."""
+        return {
+            e.uid : e.score for (e_id, e) in self.entities.items() if e.kind == EntityKind.PLAYER
+        }
     
 class GameClient:
     """Faciliates communication between the user and the server's game states."""
@@ -486,6 +530,7 @@ class GameClient:
         self.match_id = 0
         self.incoming_messages = []
         self.outgoing_messages = []
+        self.scoreboard = {}
         # Whether we're in a waiting room or a real match.
         self.live_match = False
         # self.connect_server()
@@ -577,6 +622,14 @@ class GameClient:
     def recv_state(self):
         """Checks if there is a game state update from the server, if so,
         register it with the game engine."""
+        remaining_messages = []
+        for message in self.incoming_messages:
+            if message['method'] == "GAME_STATE":
+                LOGGER.debug('received game state from server')
+                self.engine.load_state(message['state'])
+            else:
+                remaining_messages.append(message)
+        self.incoming_messages = remaining_messages
     
     def recv_input(self):
         """Checks if there is input from the server, and updates
@@ -620,7 +673,7 @@ class GameClient:
                 m = message
             elif message['method'] == "START_MATCH":
                 LOGGER.debug('got START_MATCH: %s', message)
-                self.start_game()
+                self.start_game(self.match_id)
                 self.engine.load_state(message['state'])
                 self.live_match = True
                 LOGGER.debug('sending ACK')
@@ -642,7 +695,8 @@ class GameClient:
         remaining_messages = []
         for message in self.incoming_messages:
             if message['method'] == "END_MATCH":
-                self.display.add_message(f"Game over. Victor is {message['victor_id']}")
+                victor = 'You' if (message['victor_id'] == self.player_id) else message['victor_id'][0:6]
+                self.display.add_message(f"Game over. {victor} won!")
                 finished = True
             else:
                 # only get the user input messages from the queue
@@ -716,6 +770,19 @@ class GameClient:
         """Advances the game engine by a single tick."""
         self.engine.advance_tick()
     
+    def update_scoreboard(self):
+        """Updates the local scoreboard, noting any changes since the last check."""
+        new_scores = self.engine.get_scores()
+        for uid in new_scores:
+            if uid not in self.scoreboard:
+                self.scoreboard[uid] = new_scores[uid]
+            if new_scores[uid] > self.scoreboard[uid]:
+                LOGGER.debug('score increase: %s to %d', uid, new_scores[uid])
+                player = "You" if uid == self.player_id else uid[0:6]
+                increase = new_scores[uid] - self.scoreboard[uid]
+                self.scoreboard[uid] = new_scores[uid]
+                self.display.add_message(f"{player} got {increase} points! Score: {new_scores[uid]}")
+    
     def join_game(self):
         """Attempts to join a game on the host server. If our socket isn't
         connected, return False without doing anything."""
@@ -723,9 +790,10 @@ class GameClient:
             return False
         self.send_msg({"method": "JOIN_MATCH"})
 
-    def start_game(self):
+    def start_game(self, match_id):
         """Starts the local game engine."""
         self.engine.reset_game()
+        self.engine.generate_pickup_locations(match_id)
 
     def check_join_game(self):
         """Determines if a game has been joined. If so, set player ID
@@ -745,7 +813,7 @@ class GameServer:
         self.engine = GameEngine()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind(("0.0.0.0", port))
-        self.matchId = str(uuid.uuid4())
+        self.match_id = str(uuid.uuid4())
         self.user_inputs = []
         self.ready_users = []
         self.in_game = False
@@ -760,15 +828,13 @@ class GameServer:
     def disconnect_user(self, user_id=0, user_socket=None):
         """If the user's socket is still open, close their connection and remove their
         socket from our dict of connections."""
-        if user_id != 0:
-            if user_id in self.user_sockets:
-                self.user_sockets[user_id].close()
-                self.user_sockets.pop(user_id)
-        elif user_socket is not None:
-            for uid,sock in self.user_sockets:
-                if sock == user_socket:
-                    self.user_sockets[uid].close()
-                    self.user_sockets.pop(uid)
+        if user_id == 0 and user_socket is not None:
+            user_id = self.get_uid_by_socket()
+        if user_id in self.user_sockets:
+            self.user_sockets[user_id].close()
+            self.user_sockets.pop(user_id)
+        if user_id in self.ready_users:
+            self.ready_users.remove(user_id)
                 
     def get_uid_by_socket(self, user_socket):
         """Returns the user id corresponding to the socket, if we have one. Else,
@@ -785,7 +851,11 @@ class GameServer:
         self.engine.reset_game()
 
         while len(self.ready_users) < MIN_PLAYERS:
-            LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
+            for uid in self.user_sockets:
+                if not self.user_connected(uid):
+                    LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
+                    self.disconnect_user(uid)
+
             # server socket + user sockets
             all_sockets = [self.socket, *self.user_sockets.values()]
             # Check for readable sockets
@@ -798,7 +868,7 @@ class GameServer:
                     # and give them a user id
                     user_id = str(uuid.uuid4())
                     self.user_sockets[user_id] = conn
-                    LOGGER.debug("got new client %s", addr)
+                    LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
                 else:  # If the socket is a client
                     # get their user ID
                     user_id = self.get_uid_by_socket(s)
@@ -813,14 +883,14 @@ class GameServer:
                             continue
 
                         try: # Handle request, expect JOIN_MATCH
-                            helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": user_id, "match_id": self.matchId}))
+                            helpers.send_packet(s, helpers.marshal_message({"method": "MATCH_JOINED", "user_id": user_id, "match_id": self.match_id}))
                             self.ready_users.append(user_id)
                             self.engine.add_user(user_id) # Add user to engine
                         except Exception as e:
                             LOGGER.debug('err responding to join_match: %s', e)
                             
                     except Exception as e: # If something with request goes wrong, remove from socket_dicts
-                        LOGGER.debug("err %s - removing %s from clients", e, s)
+                        LOGGER.debug('we have %d users and %d players', len(self.user_sockets), len(self.ready_users))
                         self.disconnect_user(user_id=user_id)
         
         return True
@@ -856,6 +926,7 @@ class GameServer:
             "state": start_state,
         })
         # notify users of match start
+        to_start = time.time()+MATCH_START_DELAY
         for user_id in dict(self.user_sockets): # copy dict before we iterate through it
             try:
                 helpers.send_packet(self.user_sockets[user_id], message)
@@ -863,13 +934,25 @@ class GameServer:
                 LOGGER.debug('err sending START_MATCH: %s', e)
                 if user_id in self.user_sockets:
                     self.user_sockets.pop(user_id)
+        while time.time() < to_start:
+            pass
+
+        # generate pickup positions
+        self.engine.generate_pickup_locations(self.match_id)
 
         self.in_game = True
         return True
 
     def end_match(self):
         """End a game, telling all users who the victor is."""
-        victor_id = 0 # TODO: replace with victor determining procedure
+        scores = self.engine.get_scores()
+        victor_id = 0
+        highest = -1
+        for uid in scores:
+            if scores[uid] > highest:
+                highest = scores[uid]
+                victor_id = uid
+
         packet = helpers.marshal_message({"method":"END_MATCH","victor_id": victor_id})
         while self.ready_users:
             sockets = [self.user_sockets[uid] for uid in self.ready_users]
@@ -897,7 +980,10 @@ class GameServer:
                 message = helpers.unmarshal_message(packet)
                 if message['method'] != "USER_INPUT":
                     continue
-                self.engine.register_input(message['user_id'], message['input_state'], message['tick'])
+                LOGGER.debug('msg: %s', message)
+                self.engine.register_input(message['user_id'], message['input_state'], tick=message['tick'])
+                if message['tick'] < self.engine.current_tick:
+                    self.engine.rollback(message['tick'])
                 self.user_inputs.append({
                     "user_id": message['user_id'],
                     "input_state": message['input_state'],
@@ -927,6 +1013,18 @@ class GameServer:
                     self.remove_user(user_id=user_id)
 
             self.user_inputs = []
+
+    def sync_clients(self):
+        packet = helpers.marshal_message({
+            "method": "GAME_STATE",
+            "state": self.engine.serialize_current_state()
+        })
+        for user_id in dict(self.user_sockets):
+            try:
+                helpers.send_packet(self.user_sockets[user_id], packet)
+            except OSError as e:
+                LOGGER.debug('err relaying input: %s', e)
+                self.remove_user(user_id=user_id)
 
     def match_finished(self):
         """Determines whether the current match is over or not."""
@@ -959,4 +1057,9 @@ class GameServer:
             except Exception as e:
                 LOGGER.debug('err sending REMOVE_PLAYER: %s', e)
                 self.remove_user(player)'''
+
+    def user_connected(self, user_id):
+        """Returns whether the user represented by the given user ID has
+        a socket that is not closed or in a failure state."""
+        return (user_id in self.user_sockets) and (not self.user_sockets[user_id].fileno() < 0)
 

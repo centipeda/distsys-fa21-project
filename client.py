@@ -40,7 +40,7 @@ def main():
                 # ask the server to join a game
                 game_client.join_game()
                 # initialize waiting room
-                game_client.start_game()
+                game_client.start_game(time.time()) # random seed value for waiting room
                 player = game_client.engine.add_user(game_client.player_id, (100, 100))
                 game_client.engine.add_user(1, (500, 500))
                 game_state = "waiting"
@@ -68,6 +68,7 @@ def main():
             #game_client.send_input()
             # update game state
             game_client.advance_game()
+            game_client.update_scoreboard()
             # draw game
             game_client.display.focus_entity(player)
             game_client.display.draw_frame(game_client)
@@ -91,6 +92,7 @@ def main():
                 game_client.display.add_message('Disconnected from server.')
                 game_state = "title"
                 game_client.live_match = False
+            game_client.recv_state()
             game_client.recv_input()
             if game_client.recv_end():
                 # we've reached the end of a match, return to title screen
@@ -98,6 +100,7 @@ def main():
             # process local events
             game_client.process_input()
             game_client.advance_game()
+            game_client.update_scoreboard()
             # draw game state to screen
             game_client.display.focus_entity(game_client.get_player())
             game_client.display.draw_frame(game_client)

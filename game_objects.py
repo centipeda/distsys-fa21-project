@@ -9,6 +9,7 @@ from globalvars import *
 class EntityKind(Enum):
     PLAYER = auto()
     PROJECTILE = auto()
+    PICKUP = auto()
 
 class GameEntity:
     """Base class for game entities."""
@@ -77,6 +78,7 @@ class Player(GameEntity):
         self.direction = self.get_normal_velocity()
         self.knockback_time = KNOCKBACK_TIME
         self.knockback_speed = KNOCKBACK_SPEED
+        self.score = 0
         # whether the player is in a 'knockback' state or not after
         # getting hit. knockback < 0 indicates normal movement, while
         # knockback > 0 indicates the time left in the knockback state.
@@ -96,16 +98,15 @@ class Player(GameEntity):
     
     def update_velocity(self, input_state=None):
         """Update player velocity according to input."""
+
         # player can't move while in knockback state
         if self.knockback > 0:
+            self.velocity = self.rescale_velocity(1 - 1/1000)
             self.knockback -= 1
             return
         elif self.knockback == 0:
             self.knockback = -1
             self.velocity = (0,0)
-            return
-
-        if self.out_of_bounds():
             return
 
         if input_state is not None:
@@ -131,16 +132,20 @@ class Player(GameEntity):
                 self.direction = self.get_normal_velocity()
 
     def shoot_projectile(self):
+        """Spawns a pickup with velocity corresponding to the Player's."""
         dir_x, dir_y = self.direction
         if dir_x == 0 and dir_y == 0:
             return None
         proj_vel = (dir_x*PROJECTILE_SPEED, dir_y*PROJECTILE_SPEED)
         return Projectile(self.uid, self.position, proj_vel)
     
+    def collect_pickup(self, pickup):
+        """Collects a pickup by adding its value to our score."""
+        self.score += pickup.value
+    
     def update_position(self):
         super().update_position()
-        if self.knockback < 0 and not self.out_of_bounds():
-            self.position = self.bound_position()
+        self.position = self.bound_position()
         
 class Projectile(GameEntity):
     """Class for projectile entities."""
@@ -155,7 +160,19 @@ class Projectile(GameEntity):
         data['owner_uid'] = self.owner_uid
         return data
 
-def spawn_entity(entity_data):
+class Pickup(GameEntity):
+    """Class for item pickup entities."""
+
+    def __init__(self, position=(0, 0)):
+        super().__init__(EntityKind.PICKUP, PROJECTILE_SIZE, position=position, velocity=(0,0), speed=0)
+        self.value = POINTS_PER_PICKUP
+
+    def serialize(self):
+        data = super().serialize()
+        data['kind'] = 'pickup'
+        return data
+
+def deserialize_entity(entity_data):
     """Returns an Entity based on its serialized data."""
     pos_x,pos_y = entity_data['position']
     vel_x,vel_y = entity_data['velocity']
@@ -172,4 +189,8 @@ def spawn_entity(entity_data):
         return Projectile(owner_uid, 
             position=(pos_x,pos_y),
             velocity=(vel_x,vel_y)
+        )
+    elif entity_data['kind'] == 'pickup':
+        return Pickup(
+            position=(pos_x,pos_y)
         )

@@ -4,7 +4,7 @@
 DEBUG_ENABLED = True
 
 # set to true to skip the startup animation on the client
-SKIP_INTRO = False
+SKIP_INTRO = True
 
 import logging
 # set up debug logging
@@ -27,6 +27,7 @@ COLOR_BLACK = (0,0,0)
 COLOR_RED   = (255, 0, 0)
 COLOR_BLUE   = (0, 0, 255)
 COLOR_GREEN = (0, 255, 0)
+COLOR_YELLOW = (255, 255, 0)
 COLOR_GRAY  = (153, 153, 153)
 
 GAME_TITLE = "Lag Fighters"
@@ -40,15 +41,17 @@ SERVER_PORT = 5555
 GLOBAL_INPUT_DELAY = 5
 # How often the engine should record the current state for rollback.
 STATE_SAVE_RATE = 100 # ticks apart
+# How often to send re-synchronization packets to each client.
+RESYNC_RATE = 120 # ticks apart
 
 
 ARENA_SIZE  = 1000 # pixels
 # Minimum players to start a match.
 MIN_PLAYERS = 2
 # Maximum players in a match.
-MAX_PLAYERS = 2
+MAX_PLAYERS = 4
 # How many seconds the match should go on for.
-MATCH_LENGTH = 10 # seconds
+MATCH_LENGTH = 60 # seconds
 # How long of a countdown players should get before starting the match.
 MATCH_START_DELAY = 3 # seconds
 
@@ -58,8 +61,15 @@ PLAYER_SPEED = 5 # px/tick
 PLAYER_SIZE = 20 # px
 PROJECTILE_SPEED = 10 # px/tick
 PROJECTILE_SIZE  = 10 # px
+PICKUP_SIZE = 15
+POINTS_PER_PICKUP = 15
+# How many ticks between pickup spawns.
+PICKUP_SPAWN_RATE = 30
+# How many positions to pre-generate.
+PICKUP_POSITIONS_GENERATED = 4096
+MAX_PICKUPS = 5
 GUIDELINE_LENGTH = 40
 GUIDELINE_WIDTH  = 5
 
-KNOCKBACK_TIME = 10 # ticks
-KNOCKBACK_SPEED = 5 # px/tick
+KNOCKBACK_TIME = 15 # ticks
+KNOCKBACK_SPEED = 50 # px/tick

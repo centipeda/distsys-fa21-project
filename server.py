@@ -44,11 +44,17 @@ def main():
             # relay inputs to each other user
             game_server.relay_inputs()
 
+
             # check if we need to move to the next frame
             t = time.time()
             if t-last_tick > 1/FRAMERATE: # seconds per frame
                 last_tick = t
                 game_server.advance_game()
+                # send a synchronization packet to all clients if it's time
+                if game_server.engine.current_tick > 0 and \
+                   game_server.engine.current_tick % RESYNC_RATE == 0:
+                    LOGGER.debug('syncing clients...')
+                    game_server.sync_clients()
 
             # check if the match is over
             if game_server.match_finished(): 

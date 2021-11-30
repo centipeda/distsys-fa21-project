@@ -21,23 +21,39 @@ def unmarshal_message(packet):
     # LOGGER.debug('stripped: %s',message)
     message = json.loads(pickle.loads(message))
     # unmarshal input state
-    if message['method'] == "USER_INPUT" and "inputs" in message:
-        inputs = []
-        for i in message['inputs']:
-            unmarshaled_state = {
-                "user_id": i['user_id'],
-                "tick": i['tick'],
+    if message['method'] == "USER_INPUT":
+        if "inputs" in message:
+            inputs = []
+            for i in message['inputs']:
+                unmarshaled_state = {
+                    "user_id": i['user_id'],
+                    "tick": i['tick'],
+                    "input_state": {}
+                }
+                state = i['input_state']
+                for key in state:
+                    if key == "fired":
+                        unmarshaled_state["input_state"][key] = state[key]
+                    else:
+                        unmarshaled_state["input_state"][int(key)] = state[key]
+                inputs.append(unmarshaled_state)
+            message['inputs'] = inputs
+            return message
+        elif "input_state" in message:
+            unmarshaled_msg = {
+                "method": "USER_INPUT",
+                "user_id": message['user_id'],
+                "tick": message['tick'],
                 "input_state": {}
             }
-            state = i['input_state']
-            for key in state:
+            for key in message['input_state']:
                 if key == "fired":
-                    unmarshaled_state["input_state"][key] = state[key]
+                    unmarshaled_msg["input_state"][key] = message['input_state'][key]
                 else:
-                    unmarshaled_state["input_state"][int(key)] = state[key]
-            inputs.append(unmarshaled_state)
-        message['inputs'] = inputs
-    return message
+                    unmarshaled_msg["input_state"][int(key)] = message['input_state'][key]
+            return unmarshaled_msg
+    else:
+        return message
 
 def recv_data(s):
     """Receives data from the socket, adding it to the buffer."""
