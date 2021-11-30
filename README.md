@@ -10,6 +10,35 @@ A distributed, real-time competitive multiplayer game.
 - add performance measurements
 - send MATCH_END from server with negative user id to indicate failure
 
+# installation instructions
+
+## dependencies
+
+Requires Python 3.7 or greater, with the Pygame package installed: https://www.pygame.org/wiki/GettingStarted
+
+The client program also requires a graphical environment like X11 to display the game window.
+
+## execution
+
+After downloading the source code and installing the dependencies, run the server program by running
+
+```
+python server.py
+```
+
+Then, run any number of clients with
+
+```
+python client.py
+```
+
+to open the graphical interface for playing the game.  Clicking START with the mouse will cause the client to connect to the server, and if the server is ready, begin playing a game with the other clients.
+
+To control the game, use the W, A, S, and D keys to move your character, and press the spacebar to fire projectiles that can delay other players. The objective of the game is to obtain the highest score of all other players by the end of the game (signaled by the countdown at the top of the screen), and points are scored by collecting yellow items.
+
+
+# system design
+
 ## challenges
 
 Abstractly, the goal of this project is to maintain a highly available, consistent system where all users manipulate a shared state and can respond to each others' changes in real time. 
