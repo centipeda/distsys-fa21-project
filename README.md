@@ -5,7 +5,6 @@ A distributed, real-time competitive multiplayer game.
 ![Game Intro](assets/lag_warriors.gif)
 
 ## TODO
-- add simulated lag
 - add performance measurements
 - send MATCH_END from server with negative user id to indicate failure
 

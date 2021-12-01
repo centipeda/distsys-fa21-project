@@ -42,7 +42,9 @@ GLOBAL_INPUT_DELAY = 5
 # How often the engine should record the current state for rollback.
 STATE_SAVE_RATE = 100 # ticks apart
 # How often to send re-synchronization packets to each client.
-RESYNC_RATE = 120 # ticks apart
+RESYNC_RATE = 300 # ticks apart
+# How much lag to simulate on the client-side.
+EXTRA_CLIENT_LATENCY = 0 # ticks
 
 
 ARENA_SIZE  = 1000 # pixels
@@ -51,7 +53,7 @@ MIN_PLAYERS = 2
 # Maximum players in a match.
 MAX_PLAYERS = 4
 # How many seconds the match should go on for.
-MATCH_LENGTH = 60 # seconds
+MATCH_LENGTH = 15 # seconds
 # How long of a countdown players should get before starting the match.
 MATCH_START_DELAY = 3 # seconds
 

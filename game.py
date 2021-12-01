@@ -730,7 +730,7 @@ class GameClient:
         try:
             LOGGER.debug('attempting to connnect to %s:%d...', self.server_host, self.server_port)
             self.socket = socket.create_connection((self.server_host, self.server_port))
-        except ConnectionError as e:
+        except (TimeoutError,ConnectionError) as e:
             LOGGER.debug('Failed to connect to server: %s', e)
             return False
         return True
@@ -1041,7 +1041,7 @@ class GameServer:
     def match_finished(self):
         """Determines whether the current match is over or not."""
         # check whether we're over the match length time in ticks
-        if self.engine.current_tick > (MATCH_LENGTH+MATCH_START_DELAY)*FRAMERATE:
+        if self.engine.current_tick > MATCH_LENGTH*FRAMERATE:
             LOGGER.debug('reached match end, ending match')
             return True
 
