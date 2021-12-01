@@ -314,10 +314,8 @@ class GameEngine:
             game_state = self.serialize_current_state()
         self.frames[game_state['tick']] = game_state
 
-    def register_input(self, uid, user_input, tick=None):
+    def register_input(self, uid, user_input, tick):
         """Adds a set of input corresponding to a single tick."""
-        if tick is None:
-            tick = self.current_tick + self.input_delay
         if tick not in self.inputs:
             self.inputs[tick] = {}
         self.inputs[tick][uid] = user_input
@@ -443,7 +441,9 @@ class GameEngine:
 
     def remove_user(self, uid):
         """Removes a user to a waiting or ongoing match."""
-        return self.remove_entity(self.entities[uid])
+        for e in self.entities.values():
+            if e.kind == EntityKind.PLAYER and e.uid == uid:
+                return self.remove_entity(e)
 
     def rollback(self, begin_tick):
         """Recalculates the current game state according to recorded inputs,
@@ -514,10 +514,14 @@ class GameEngine:
     
 class GameClient:
     """Faciliates communication between the user and the server's game states."""
-    def __init__(self, server_host=SERVER_HOST, server_port=SERVER_PORT, display=True):
-        self.socket = None
+    def __init__(self, server_host=SERVER_HOST, server_port=SERVER_PORT, display=True, extra_latency=0):
         self.server_host = server_host
         self.server_port = server_port
+        if display:
+            self.display = GameDisplay()
+        # How many ticks to manually delay responses by.
+        self.extra_latency = extra_latency
+        self.socket = None
         self.engine = GameEngine()
         self.input_state = {
             pygame.K_w : False,
@@ -534,8 +538,6 @@ class GameClient:
         # Whether we're in a waiting room or a real match.
         self.live_match = False
         # self.connect_server()
-        if display:
-            self.display = GameDisplay()
     
     def connected(self):
         """Returns false if our socket is None or has a negative file descriptor."""
@@ -617,7 +619,7 @@ class GameClient:
             if self.live_match:
                 self.send_input(tick)
             # send input to game engine
-            self.engine.register_input(self.player_id, self.input_state, tick=tick)
+            self.engine.register_input(self.player_id, self.input_state, tick)
     
     def recv_state(self):
         """Checks if there is a game state update from the server, if so,
@@ -711,15 +713,16 @@ class GameClient:
             "method": "USER_INPUT",
             "user_id": self.player_id,
             "input_state": self.input_state,
-            "tick": self.engine.current_tick
+            "tick": tick
         }
         self.send_msg(msg)
 
     def send_msg(self, message):
         """Formats a message (a dict) to be send to the server and adds
-        it to the outgoing message queue."""
+        it to the outgoing message queue, along with the current tick."""
         LOGGER.debug('queueing message %s', message)
-        self.outgoing_messages.append(helpers.marshal_message(message))
+        # delay all message sends by the extra latency
+        self.outgoing_messages.append((self.engine.current_tick+self.extra_latency, helpers.marshal_message(message)))
 
     def connect_server(self):
         """Connects to a server listening on the given host and port, and
@@ -736,7 +739,7 @@ class GameClient:
         """Checks if packet has come in from the server, and add the 
         contents of the packet to the incoming queue if so. Additionally,
         checks if the server socket is ready for writing, in which case
-        send a message from the outgoing queue.
+        sends as many messages as possible from the outgoing queue.
         
         If the socket to the server is broken (fileno is -1), return False.
         Else, return True."""
@@ -745,7 +748,6 @@ class GameClient:
             return False
 
         [readable, writable, x] = select.select([self.socket], [self.socket], [], 0)
-
         if self.socket in readable or PACKET_HEADER in helpers.INCOMING_BUFFER:
             try:
                 packet = helpers.recv_packet(self.socket)
@@ -755,15 +757,23 @@ class GameClient:
             LOGGER.debug('read packet from server: %s', packet)
             if packet:
                 self.incoming_messages.append(helpers.unmarshal_message(packet))
-    
-        if self.socket in writable and self.outgoing_messages:
-            LOGGER.debug('sending message to server')
-            msg = self.outgoing_messages.pop(0)
-            try:
-                helpers.send_packet(self.socket, msg)
-            except Exception as e:
-                LOGGER.debug('err sending message to server: %s', e)
-                return self.communication_error_handler()
+        # write as much as we can to the socket
+        tried_to_send = []
+        while writable and self.outgoing_messages:
+            if self.socket in writable:
+                send_tick,msg = self.outgoing_messages.pop(0)
+                if (self.extra_latency == 0) or (send_tick >= self.engine.current_tick):
+                    try:
+                        LOGGER.debug('sending message to server')
+                        helpers.send_packet(self.socket, msg)
+                    except Exception as e:
+                        LOGGER.debug('err sending message to server: %s', e)
+                        self.outgoing_messages.extend(tried_to_send)
+                        return self.communication_error_handler()
+                else:
+                    tried_to_send.append((send_tick,msg))
+            [r, writable, x] = select.select([], [self.socket], [], 0)
+        self.outgoing_messages.extend(tried_to_send)
         return True
 
     def advance_game(self):
@@ -992,7 +1002,9 @@ class GameServer:
             except OSError as e:
                 LOGGER.debug('err relaying input: %s', e)
                 self.remove_user(user)
-
+            except ConnectionError as e:
+                LOGGER.debug('err relaying input: %s', e)
+                self.remove_user(user)
 
     def relay_inputs(self):
         """Relays the given input to all other players
@@ -1038,11 +1050,11 @@ class GameServer:
         self.engine.advance_tick()
 
     def remove_user(self, user):
-        """Remove user when disconnect happens"""
-        LOGGER.debug('removing user: %s', self.user_sockets[user])
-        temp_user = id(self.user_sockets[user])
-        self.engine.remove_user(temp_user)
-        del(self.user_sockets[user])
+        """Remove user when disconnect happens."""
+        uid = self.get_uid_by_socket(user)
+        LOGGER.debug('removing user %s: %s', uid, user)
+        self.engine.remove_user(uid)
+        self.disconnect_user(uid)
         
         # Idea is to relay to all users that a user has disconnected. Having some issues with id's and which ones to send
         '''
