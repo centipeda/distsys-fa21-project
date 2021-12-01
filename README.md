@@ -2,7 +2,7 @@
 
 A distributed, real-time competitive multiplayer game.
 
-![Game Intro](assets/lag_warriors.gif)
+![Game Intro](assets/intro.gif)
 
 ## TODO
 - add performance measurements
