@@ -65,6 +65,9 @@ def main():
                 print("Ops Count:", game_server.ops_cnt)
                 print("Ops/Sec:", game_server.ops_cnt/MATCH_LENGTH)
                 print("Sec/ops:", MATCH_LENGTH/game_server.ops_cnt)
+                game_server.engine.rollback_cnt = 0
+                game_server.engine.rollback_lost = 0
+                game_server.ops_cnt = 0
                 print("\n\n\n\n\n")
                 game_server.end_match()
 

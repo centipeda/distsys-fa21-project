@@ -797,6 +797,7 @@ class GameClient:
             LOGGER.debug('read packet from server: %s', packet)
             if packet:
                 self.incoming_messages.append(helpers.unmarshal_message(packet))
+                #time.sleep(0.2) # Add lag
         # write as much as we can to the socket
         tried_to_send = []
         while writable and self.outgoing_messages:

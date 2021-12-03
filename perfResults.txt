@@ -1,0 +1,186 @@
+Lag with 2 clients:
+    Rollback Count: 34
+    Rollback Ticks Lost: 1765
+    Ops Count: 110
+    Ops/Sec: 7.333333333333333
+    Sec/ops: 0.13636363636363635
+
+    Rollback Count: 34
+    Rollback Ticks Lost: 1547
+    Ops Count: 110
+    Ops/Sec: 7.333333333333333
+    Sec/ops: 0.13636363636363635
+
+    Rollback Count: 35
+    Rollback Ticks Lost: 1538
+    Ops Count: 113
+    Ops/Sec: 7.533333333333333
+    Sec/ops: 0.13274336283185842
+
+    Rollback Count: 34
+    Rollback Ticks Lost: 1618
+    Ops Count: 110
+    Ops/Sec: 7.333333333333333
+    Sec/ops: 0.13636363636363635
+
+    Rollback Count: 34
+    Rollback Ticks Lost: 1768
+    Ops Count: 113
+    Ops/Sec: 7.533333333333333
+    Sec/ops: 0.13274336283185842
+
+Lag with 3 clients:
+    Rollback Count: 52
+    Rollback Ticks Lost: 2627
+    Ops Count: 193
+    Ops/Sec: 12.866666666666667
+    Sec/ops: 0.07772020725388601
+
+    Rollback Count: 46
+    Rollback Ticks Lost: 2121
+    Ops Count: 196
+    Ops/Sec: 13.066666666666666
+    Sec/ops: 0.07653061224489796
+
+    Rollback Count: 48
+    Rollback Ticks Lost: 2175
+    Ops Count: 204
+    Ops/Sec: 13.6
+    Sec/ops: 0.07352941176470588
+
+    Rollback Count: 48
+    Rollback Ticks Lost: 2237
+    Ops Count: 204
+    Ops/Sec: 13.6
+    Sec/ops: 0.07352941176470588
+
+    Rollback Count: 48
+    Rollback Ticks Lost: 2091
+    Ops Count: 204
+    Ops/Sec: 13.6
+    Sec/ops: 0.07352941176470588
+
+Lag with 4 clients:
+    Rollback Count: 73
+    Rollback Ticks Lost: 3689
+    Ops Count: 338
+    Ops/Sec: 22.533333333333335
+    Sec/ops: 0.04437869822485207
+
+    Rollback Count: 71
+    Rollback Ticks Lost: 3216
+    Ops Count: 347
+    Ops/Sec: 23.133333333333333
+    Sec/ops: 0.043227665706051875
+
+    Rollback Count: 88
+    Rollback Ticks Lost: 4308
+    Ops Count: 308
+    Ops/Sec: 20.533333333333335
+    Sec/ops: 0.048701298701298704
+
+    Rollback Count: 79
+    Rollback Ticks Lost: 3573
+    Ops Count: 339
+    Ops/Sec: 22.6
+    Sec/ops: 0.04424778761061947
+
+    Rollback Count: 63
+    Rollback Ticks Lost: 2664
+    Ops Count: 324
+    Ops/Sec: 21.6
+    Sec/ops: 0.046296296296296294
+
+################################################################################################################################################################################################
+Normal 2 Clients:
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 179
+    Ops/Sec: 11.933333333333334
+    Sec/ops: 0.08379888268156424
+
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 185
+    Ops/Sec: 12.333333333333334
+    Sec/ops: 0.08108108108108109
+
+    Rollback Count: 7
+    Rollback Ticks Lost: 400
+    Ops Count: 182
+    Ops/Sec: 12.133333333333333
+    Sec/ops: 0.08241758241758242
+
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 179
+    Ops/Sec: 11.933333333333334
+    Sec/ops: 0.08379888268156424
+
+    Rollback Count: 8
+    Rollback Ticks Lost: 537
+    Ops Count: 182
+    Ops/Sec: 12.133333333333333
+    Sec/ops: 0.08241758241758242
+
+Normal 3 Clients:
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 360
+    Ops/Sec: 24.0
+    Sec/ops: 0.041666666666666664
+
+    Rollback Count: 6
+    Rollback Ticks Lost: 323
+    Ops Count: 360
+    Ops/Sec: 24.0
+    Sec/ops: 0.041666666666666664
+
+    Rollback Count: 2
+    Rollback Ticks Lost: 143
+    Ops Count: 360
+    Ops/Sec: 24.0
+    Sec/ops: 0.041666666666666664
+
+    Rollback Count: 5
+    Rollback Ticks Lost: 220
+    Ops Count: 360
+    Ops/Sec: 24.0
+    Sec/ops: 0.041666666666666664
+
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 360
+    Ops/Sec: 24.0
+    Sec/ops: 0.041666666666666664
+
+Normal with 4 clients
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 588
+    Ops/Sec: 39.2
+    Sec/ops: 0.025510204081632654
+
+    Rollback Count: 9
+    Rollback Ticks Lost: 478
+    Ops Count: 592
+    Ops/Sec: 39.46666666666667
+    Sec/ops: 0.02533783783783784
+
+    Rollback Count: 2
+    Rollback Ticks Lost: 149
+    Ops Count: 591
+    Ops/Sec: 39.4
+    Sec/ops: 0.025380710659898477
+
+    Rollback Count: 1
+    Rollback Ticks Lost: 26
+    Ops Count: 591
+    Ops/Sec: 39.4
+    Sec/ops: 0.025380710659898477
+
+    Rollback Count: 0
+    Rollback Ticks Lost: 0
+    Ops Count: 592
+    Ops/Sec: 39.46666666666667
+    Sec/ops: 0.02533783783783784
