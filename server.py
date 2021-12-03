@@ -1,7 +1,7 @@
 """Executable for hosting matches."""
 
 import time
-import game
+import game_bot
 import sys
 from globalvars import *
 
@@ -18,7 +18,7 @@ def main():
         sys.exit("Usage: server.py [port]")
 
     # set up GameServer object
-    game_server = game.GameServer(port=port)
+    game_server = game_bot.GameServer(port=port)
 
     # listen on a port for users who want to start a match
     game_server.listen()
@@ -58,6 +58,14 @@ def main():
 
             # check if the match is over
             if game_server.match_finished(): 
+                print("\n\n\n\n\n")
+                print("GAME ENDED: ")
+                print("Rollback Count:", game_server.engine.rollback_cnt)
+                print("Rollback Ticks Lost:", game_server.engine.rollback_lost)
+                print("Ops Count:", game_server.ops_cnt)
+                print("Ops/Sec:", game_server.ops_cnt/MATCH_LENGTH)
+                print("Sec/ops:", MATCH_LENGTH/game_server.ops_cnt)
+                print("\n\n\n\n\n")
                 game_server.end_match()
 
 

@@ -5,7 +5,7 @@ import time
 
 import pygame
 
-import game
+import game_bot
 from globalvars import EXTRA_CLIENT_LATENCY, FRAMERATE, LOGGER, SERVER_HOST, SERVER_PORT, SKIP_INTRO
 
 def main():
@@ -14,7 +14,7 @@ def main():
     if len(sys.argv) > 1:
         host = sys.argv[1]
 
-    game_client = game.GameClient(server_host=host,server_port=port,display=True,extra_latency=EXTRA_CLIENT_LATENCY)
+    game_client = game_bot.GameClient(server_host=host,server_port=port,display=True,extra_latency=EXTRA_CLIENT_LATENCY)
     if not SKIP_INTRO:
         game_client.play_intro()
     game_state = "title"
