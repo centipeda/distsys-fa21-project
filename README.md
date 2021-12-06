@@ -4,10 +4,6 @@ A distributed, real-time competitive multiplayer game.
 
 ![Game Intro](assets/intro.gif)
 
-## TODO
-- add performance measurements
-- send MATCH_END from server with negative user id to indicate failure
-
 # installation instructions
 
 ## dependencies
