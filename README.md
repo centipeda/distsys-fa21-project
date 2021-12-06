@@ -1,4 +1,4 @@
-# distsys-fa21-project
+# lag-fighters
 
 A distributed, real-time competitive multiplayer game.
 
